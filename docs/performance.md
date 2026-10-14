@@ -25,10 +25,30 @@ Relaxations of 64 cells:
 | MACE via TorchSim, CPU | 64 | 47 | 185 s | 268 s (266.5 + 1.5) | 0.7x |
 | MACE via TorchSim, CPU | 16 | 15 | 226 s | 125 s (123.9 + 1.0) | 1.8x |
 
+On an NVIDIA RTX 4090 (24 GB, Intel Core i9-13900KF host), with the Symmetrix-XL 0.1.1 CUDA wheel (`symmetrix-xl-cuda12-sm89`, batched through atombatch's graph path) and MACE-MP small through TorchSim 0.6.2 with torch 2.14 (CUDA 13.0):
+
+| Model and precision | Sequential | 4 | 16 | 64 | 128 | Gain at 64 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Symmetrix FP32 | 62 | 15 | 7.0 | 5.3 | 18 | 11.7x |
+| Symmetrix FP64 | 131 | 42 | 28 | 25 | 38 | 5.1x |
+| MACE via TorchSim FP32 | 206 | 55 | 45 | 44 | 44 | 4.7x |
+| MACE via TorchSim FP64 | 298 | 209 | 193 | 192 | out of memory | 1.6x |
+
+Model throughput in us/atom against structures per call. Relaxations of 64 cells with `max_active=64`:
+
+| Model and precision | Sequential | atombatch (model + other) | Speedup |
+| --- | --- | --- | --- |
+| Symmetrix FP32 | 6.6 s | 4.5 s (2.5 + 2.0) | 1.5x |
+| Symmetrix FP64 | 14.3 s | 6.3 s (4.6 + 1.7) | 2.3x |
+| MACE via TorchSim FP32 | 23.8 s | 6.7 s (5.3 + 1.4) | 3.5x |
+| MACE via TorchSim FP64 | 34.1 s | 24.1 s (22.6 + 1.5) | 1.4x |
+
+All runs took the same optimizer steps as the sequential loop. With Symmetrix in FP32, the batched model call became so fast that the time outside it (1.95 s, or 0.7 ms per evaluation on this host) was 43 % of the run, which limits the relaxation speedup to 1.5x despite an 11.7x gain in model throughput. FP64 is slow on this consumer GPU, which leaves MACE compute-bound and gains little from batching.
+
 Three conclusions follow from these numbers.
 
 - On the GPU, batching reduced the cost per atom about six-fold at 64 structures per call and made the relaxations three times faster. The relaxation gain is smaller than the throughput gain because relaxations finish at different times, so the mean batch (44) is below `max_active` and the last rounds are nearly empty. Throughput fell again at 128 structures per call, so larger is not always better.
-- The time outside the model call (optimizer steps, scheduler, thread hand-offs) was 0.7 to 1.5 s for about 2700 evaluations, which is 0.3 to 0.5 ms per evaluation. For 40-atom cells this is small next to the model, even on the GPU (13 % of the run).
+- The time outside the model call (optimizer steps, scheduler, thread hand-offs) was 0.3 to 0.7 ms per evaluation. With the M1 Max GPU it was 13 % of the run. With Symmetrix in FP32 on the RTX 4090 it reached 43 %, so on fast GPUs this overhead, not the model, limits the gain for 40-atom cells.
 - On the CPU, the gain depends on the model and on the batch size. The single-core Symmetrix build is compute-bound and gains nothing. MACE through TorchSim with 8 threads gained about 1.6 times at 16 to 32 structures per call and lost at 64 and above, so `max_active=16` gave a 1.8x speedup where `max_active=64` gave a slowdown. On a CPU, measure before choosing `max_active`.
 
 ## What a round costs

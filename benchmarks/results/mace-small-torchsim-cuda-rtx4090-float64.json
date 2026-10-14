@@ -1,0 +1,66 @@
+{
+  "model": "mace",
+  "device": "cuda",
+  "dtype": "float64",
+  "path": "small",
+  "machine": "Linux-5.14.0-687.39.1.el9_8.x86_64-x86_64-with-glibc2.34",
+  "processor": "x86_64",
+  "throughput": [
+    {
+      "atoms_per_cell": 40,
+      "batch": 1,
+      "sequential_us_per_atom": 298.0519595439546,
+      "batched_us_per_atom": 275.7344162091613
+    },
+    {
+      "atoms_per_cell": 40,
+      "batch": 2,
+      "sequential_us_per_atom": 298.0519595439546,
+      "batched_us_per_atom": 229.75149331614375
+    },
+    {
+      "atoms_per_cell": 40,
+      "batch": 4,
+      "sequential_us_per_atom": 298.0519595439546,
+      "batched_us_per_atom": 208.48234998993576
+    },
+    {
+      "atoms_per_cell": 40,
+      "batch": 8,
+      "sequential_us_per_atom": 298.0519595439546,
+      "batched_us_per_atom": 198.07460193987936
+    },
+    {
+      "atoms_per_cell": 40,
+      "batch": 16,
+      "sequential_us_per_atom": 298.0519595439546,
+      "batched_us_per_atom": 192.75782397016883
+    },
+    {
+      "atoms_per_cell": 40,
+      "batch": 32,
+      "sequential_us_per_atom": 298.0519595439546,
+      "batched_us_per_atom": 191.9869551784359
+    },
+    {
+      "atoms_per_cell": 40,
+      "batch": 64,
+      "sequential_us_per_atom": 298.0519595439546,
+      "batched_us_per_atom": 191.5489003295079
+    }
+  ],
+  "relaxations": {
+    "cells": 64,
+    "atoms_per_cell": 40,
+    "max_active": 64,
+    "evaluations": 2820,
+    "batched_calls": 60,
+    "mean_batch": 47.0,
+    "sequential_s": 34.129383192397654,
+    "atombatch_s": 24.104496074840426,
+    "atombatch_model_s": 22.590681448578835,
+    "atombatch_other_s": 1.513814626261592,
+    "speedup": 1.4158928312142112,
+    "same_steps": true
+  }
+}

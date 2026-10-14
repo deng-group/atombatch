@@ -9,6 +9,7 @@ from ase.optimize import FIRE
 from atombatch import Scheduler, TorchSimBackend, relax, single_point
 
 MODEL = os.environ.get("ATOMBATCH_MACE_MODEL")
+DEVICE = os.environ.get("ATOMBATCH_MACE_DEVICE", "cpu")
 
 
 @pytest.fixture(scope="module")
@@ -18,10 +19,10 @@ def mace():
     torch = pytest.importorskip("torch")
     foundations = pytest.importorskip("mace.calculators.foundations_models")
     torch_sim_mace = pytest.importorskip("torch_sim.models.mace")
-    options = {"model": MODEL, "default_dtype": "float64", "device": "cpu"}
+    options = {"model": MODEL, "default_dtype": "float64", "device": DEVICE}
     model = torch_sim_mace.MaceModel(
         foundations.mace_mp(return_raw_model=True, **options),
-        device=torch.device("cpu"),
+        device=torch.device(DEVICE),
         dtype=torch.float64,
         compute_stress=True,
     )

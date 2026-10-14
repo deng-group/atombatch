@@ -66,13 +66,13 @@ class Timed(Backend):
         return results
 
 
-def load_model(kind, device, path):
+def load_model(kind, device, path, dtype):
     """Return (batched model for add_model, factory of ASE calculators)."""
     if kind == "symmetrix":
         from symmetrix import Symmetrix
 
         options = {"dtype": "float32", "metal": True} if device == "metal" else {}
-        options.setdefault("dtype", "float64")
+        options.setdefault("dtype", dtype)
         model = Symmetrix(path, **options)
         return model, lambda: Symmetrix(path, **options)
     if kind == "mace":
@@ -80,11 +80,11 @@ def load_model(kind, device, path):
         from mace.calculators.foundations_models import mace_mp
         from torch_sim.models.mace import MaceModel
 
-        options = {"model": path, "default_dtype": "float64", "device": device}
+        options = {"model": path, "default_dtype": dtype, "device": device}
         model = MaceModel(
             mace_mp(return_raw_model=True, **options),
             device=torch.device(device),
-            dtype=torch.float64,
+            dtype=getattr(torch, dtype),
             compute_stress=False,
         )
         calculator = mace_mp(**options)
@@ -179,6 +179,12 @@ def main():
     parser.add_argument("--model", choices=["symmetrix", "mace"], required=True)
     parser.add_argument("--device", default="cpu", help="cpu, metal, cuda, ...")
     parser.add_argument("--path", required=True, help="model file or MACE-MP name")
+    parser.add_argument(
+        "--dtype",
+        choices=["float32", "float64"],
+        default="float64",
+        help="model precision (Metal is always float32)",
+    )
     parser.add_argument("--repeat", type=int, nargs=3, default=(2, 2, 2))
     parser.add_argument(
         "--batch-sizes", type=int, nargs="+", default=[1, 2, 4, 8, 16, 32, 64, 128]
@@ -195,6 +201,7 @@ def main():
         args.model,
         args.device,
         str(Path(args.path).expanduser()) if args.model == "symmetrix" else args.path,
+        args.dtype,
     )
     rows = throughput(
         model, calculator_factory, args.repeat, args.batch_sizes, args.repeats
@@ -245,6 +252,7 @@ def main():
                 {
                     "model": args.model,
                     "device": args.device,
+                    "dtype": "float32" if args.device == "metal" else args.dtype,
                     "path": Path(args.path).name,
                     "machine": platform.platform(),
                     "processor": platform.processor(),

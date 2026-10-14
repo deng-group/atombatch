@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- README restructured around installation and a Symmetrix quick start, verified end to end on CUDA.
+- Tested on an NVIDIA RTX 4090 with the Symmetrix-XL 0.1.1 CUDA wheel and with MACE through TorchSim: all tests pass, and the CUDA benchmarks are in `docs/performance.md` and `benchmarks/results/`.
+- The installation guide documents two CUDA environment problems found in testing: the Symmetrix CUDA wheels loading an older `libnvrtc.so` or `libcudart.so`, and Triton needing Python development headers.
+- `ATOMBATCH_MACE_DEVICE` selects the device of the MACE comparison test, and the benchmark script takes `--dtype`.
+
 ## 0.1.1 (2026-10-15)
 
 - The `symmetrix` extra installs matscipy. Without it, Symmetrix uses ASE's Python neighbor list, and batched relaxations with the `metal-preview-1` wheel ran three times slower than a sequential loop. atombatch now warns when Symmetrix has fallen back to the ASE neighbor list.

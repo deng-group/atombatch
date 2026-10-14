@@ -2,61 +2,125 @@
 
 # atombatch
 
-atombatch batches the energy and force evaluations of many independent ASE tasks into shared model calls. Single points, relaxations, NEB bands, and molecular dynamics run their ordinary, unmodified ASE optimizers and integrators. Each force request is routed to the model it names, and the pending requests of all running tasks are evaluated together in one batched call per model.
+atombatch batches the energy and force evaluations of many independent ASE tasks into shared model calls. Relaxations, NEB bands, molecular dynamics, phonon displacements, and Monte Carlo trials run their ordinary, unmodified ASE code. The pending requests of all running tasks are evaluated together in one batched call per model, and each task receives exactly the result it would get from an independent run.
 
-Status: early development. The scheduler, the Symmetrix, TorchSim, and sequential backends, and the single-point, relaxation, NEB, and molecular-dynamics tasks are implemented and tested against independent ASE runs. The phonon, equation-of-state, and swap Monte Carlo workflows are tested against sequential evaluation and, for Monte Carlo, against exact Boltzmann populations. First benchmarks are in [docs/performance.md](https://github.com/deng-group/atombatch/blob/main/docs/performance.md).
+A machine-learned interatomic potential evaluated on one small structure leaves a GPU mostly idle, because each call pays a fixed cost for kernel launches, synchronization, and host bookkeeping. Batching amortizes that cost. For 64 FIRE relaxations of 40-atom SrTiO3 cells, with identical step counts to a sequential ASE loop:
+
+| Model | GPU | Throughput gain at 64 cells per call | Relaxations |
+| --- | --- | --- | --- |
+| Symmetrix, MACE-OMat-0 medium (FP32) | NVIDIA RTX 4090 | 11.7x | 1.5x |
+| Symmetrix, MACE-OMat-0 medium (FP64) | NVIDIA RTX 4090 | 5.1x | 2.3x |
+| MACE-MP small via TorchSim (FP32) | NVIDIA RTX 4090 | 4.7x | 3.5x |
+| Symmetrix, MACE-OMat-0 medium (FP32) | Apple M1 Max | 6.2x | 3.0x |
+
+On a CPU the gain is small and depends on the batch size. See [performance](https://github.com/deng-group/atombatch/blob/main/docs/performance.md) for the full measurements.
+
+## Installation
+
+```bash
+pip install atombatch
+```
+
+atombatch needs Python 3.10 or later, NumPy, and ASE. The model is installed separately.
+
+### Symmetrix
+
+[Symmetrix-XL](https://github.com/bonan-group/symmetrix-xl) evaluates MACE models natively on CPUs and GPUs. Install the package for your hardware together with matscipy, which Symmetrix needs for fast neighbor lists:
+
+| Hardware | Install |
+| --- | --- |
+| Linux, CPU | `pip install "atombatch[symmetrix]"` |
+| Linux, NVIDIA GPU | `pip install atombatch matscipy symmetrix-xl-cuda12-sm89` (choose `sm80`, `sm86`, `sm89`, `sm90`, or `cuda13-sm120` for your GPU, or run `symmetrix backend install` after installing `symmetrix-xl`) |
+| macOS, Apple GPU | `pip install atombatch matscipy` and the macOS wheel from the Symmetrix-XL [metal-preview-1](https://github.com/deng-group/symmetrix-xl/releases/tag/metal-preview-1) release |
+
+Symmetrix evaluates a JSON export of a MACE model. For example, for MACE-MP-0b medium (the conversion needs `mace-torch`):
+
+```bash
+curl -L -o mace_agnesi_medium.model https://github.com/ACEsuit/mace-mp/releases/download/mace_mp_0b/mace_agnesi_medium.model
+symmetrix_extract_mace --model mace_agnesi_medium.model --output mace-mp-0b-medium.json
+```
+
+On machines where an old CUDA toolkit is on the library path, the Symmetrix CUDA wheels can load the wrong `libnvrtc.so` or `libcudart.so` and fail with `nvrtcGetCUBIN` or `invalid device ordinal`. The [installation guide](https://github.com/deng-group/atombatch/blob/main/docs/installation.md) gives the fix.
+
+### Other models
+
+MACE, fairchem, SevenNet, ORB, MatterSim, NequIP, Nequix, and metatomic models are batched through [TorchSim](https://github.com/TorchSim/torch-sim) (Python 3.12 or later):
+
+```bash
+pip install "atombatch[torchsim]" mace-torch
+```
+
+Any other ASE calculator also works, evaluated one structure at a time. Further extras: `phonons` (phonopy and phono3py), `test`, and `docs`.
+
+## Quick start
+
+Relax 64 rattled SrTiO3 supercells with Symmetrix. Each round, the forces of all 64 cells are evaluated in one call:
+
+```python
+from ase import Atoms
+from ase.optimize import FIRE
+from symmetrix import Symmetrix
+
+from atombatch import Scheduler, relax
+
+
+def perovskite(seed):
+    atoms = Atoms(
+        "SrTiO3",
+        scaled_positions=[(0, 0, 0), (0.5, 0.5, 0.5), (0.5, 0.5, 0), (0.5, 0, 0.5), (0, 0.5, 0.5)],
+        cell=[3.95, 3.95, 3.95],
+        pbc=True,
+    ).repeat(2)
+    atoms.rattle(0.05, seed=seed)
+    return atoms
+
+
+calculator = Symmetrix("mace-mp-0b-medium.json", dtype="float32")  # add metal=True on Apple silicon
+scheduler = Scheduler(max_active=64)
+scheduler.add_model("mace", calculator)
+for seed in range(64):
+    scheduler.submit(relax(perovskite(seed), fmax=0.05, optimizer=FIRE), "mace")
+
+results = scheduler.run()  # one TaskResult per task, in submission order
+print(sum(r.value["converged"] for r in results), "of", len(results), "converged")
+print(scheduler.batch_log[0])  # ('mace', 64, 2560): 64 cells, 2560 atoms in the first call
+```
+
+Other tasks are submitted the same way and share the same batched calls. Here `images` is a list of NEB images, and `atoms` and `alloy` are structures of your own:
 
 ```python
 from ase import units
 from ase.md.langevin import Langevin
-from ase.optimize import BFGS
-from atombatch import Scheduler, molecular_dynamics, neb, relax, single_point
+from atombatch import equation_of_state, molecular_dynamics, neb, swap_monte_carlo
 
-scheduler = Scheduler(max_active=256)
-scheduler.add_model("omat", symmetrix_calculator, max_atoms=50_000)
-for atoms in orderings:
-    scheduler.submit(relax(atoms, fmax=0.05, optimizer=BFGS), "omat")
-for images in paths:
-    scheduler.submit(neb(images, neb_kwargs={"climb": True}, interpolate="idpp"), "omat")
-scheduler.submit(
-    molecular_dynamics(
-        cell, Langevin, 10_000, timestep=2 * units.fs, temperature_K=600, friction=0.02 / units.fs
-    ),
-    "omat",
-)
-results = scheduler.run()      # one TaskResult per task, in submission order
+scheduler.submit(neb(images, neb_kwargs={"climb": True}, interpolate="idpp"), "mace")
+scheduler.submit(molecular_dynamics(atoms, Langevin, 10_000, timestep=2 * units.fs, temperature_K=600, friction=0.02 / units.fs), "mace")
+scheduler.submit(equation_of_state(atoms), "mace")
+scheduler.submit(swap_monte_carlo(alloy, [300, 600, 1200], steps=1000), "mace")
 ```
 
-With a TorchSim model, the same tasks are submitted unchanged:
+With a TorchSim model, only the model changes:
 
 ```python
 import torch
 from mace.calculators.foundations_models import mace_mp
 from torch_sim.models.mace import MaceModel
 
-model = MaceModel(mace_mp(model="medium", return_raw_model=True), device=torch.device("cuda"), dtype=torch.float64, compute_stress=True)
-scheduler.add_model("mace", model, max_atoms=20_000)
+model = MaceModel(mace_mp(model="small", return_raw_model=True, default_dtype="float32"), device=torch.device("cuda"), dtype=torch.float32, compute_stress=True)
+scheduler.add_model("mace", model)
 ```
-
-## Why
-
-A machine-learned interatomic potential evaluated on one small structure leaves a GPU mostly idle, because each call pays a fixed cost for kernel launches, synchronization, and host bookkeeping. Screening many orderings of a disordered lattice, relaxing hundreds of candidates, or running many NEB paths therefore spends most of its time on per-call overhead. Evaluating the requests of many tasks together amortizes that cost: with Symmetrix on an Apple M1 Max GPU, joining 64 SrTiO3 cells of 40 atoms into one evaluation reduced the cost from 145 to 23 us/atom, and 64 FIRE relaxations ran three times faster than a sequential ASE loop with identical step counts. On a CPU the gain is smaller and depends on the batch size (see [performance](https://github.com/deng-group/atombatch/blob/main/docs/performance.md)).
 
 ## Scope
 
 - Tasks: single points, relaxations (any ASE optimizer, cell filters included), NEB (regular and climbing image, several bands at once), and molecular dynamics (any ASE integrator), mixed in one run.
 - Batched workflows: tasks that need many independent evaluations submit them together through `TaskContext.evaluate`, so one workflow fills a batch on its own.
-  - `displacement_forces`: forces on all displaced supercells of a phonopy or phono3py object (fc2, fc3, and the separate fc2 supercells of phono3py) in one request.
+  - `displacement_forces`: forces on all displaced supercells of a phonopy or phono3py object in one request.
   - `equation_of_state`: all scaled cells in one request, fitted with `ase.eos`.
   - `swap_monte_carlo`: Metropolis swaps of site occupancies with replica exchange, the trial configurations of all temperatures evaluated in one request per step.
-  - Custom workflows call `context.evaluate(structures)` directly from any task function.
-- Scheduling: tasks that finish are replaced from a queue so that batches stay full, and batches are sized to a per-model atom or edge budget.
-- Models: several models in one run, batched per model. `add_model` accepts:
-  - a Symmetrix calculator (Symmetrix-XL 0.1.1 or later), with all structures of a round joined into one native call;
-  - a [TorchSim](https://github.com/TorchSim/torch-sim) model, which provides batched evaluation for MACE, fairchem, SevenNet, ORB, MatterSim, NequIP, Nequix, and metatomic models (`pip install "atombatch[torchsim]"`, Python 3.12 or later);
-  - a function `evaluate(structures, properties)` returning one result dictionary per structure, for a model with its own batched inference;
-  - any other ASE calculator, evaluated one structure at a time. This keeps scheduling and refill but gives no batching speedup, because the ASE calculator interface evaluates one structure per call.
-- Results are the same as running each task independently, because each task receives exactly the forces it requested.
+  - Custom workflows call `context.evaluate(structures)` from any task function.
+- Scheduling: finished tasks are replaced from a queue (`max_active`) so that batches stay full, and calls are split at a per-model atom budget (`max_atoms`).
+- Models: several models in one run, batched per model. Symmetrix-XL from 0.1.1 is batched natively, TorchSim models in one model call, and user functions with the signature `evaluate(structures, properties)` connect any model with its own batched inference.
+- Results are the same as running each task independently, because each task receives exactly the energies and forces it requested. The tests check this against independent ASE runs and against each model's own ASE calculator.
 
 ## Related work
 
@@ -65,20 +129,12 @@ A machine-learned interatomic potential evaluated on one small structure leaves 
 - MatterSim's [`BatchRelaxer`](https://github.com/microsoft/mattersim/blob/main/src/mattersim/applications/batch_relax.py) steps ASE optimizers in lockstep for relaxations with one model.
 - [i-PI](https://github.com/i-pi/i-pi) batches force requests across replicas and systems within its own simulation engine.
 
-## Installation
-
-```bash
-pip install atombatch
-```
-
-Optional extras: `symmetrix` (Symmetrix-XL and matscipy), `torchsim` (TorchSim models, Python 3.12 or later), and `phonons` (phonopy and phono3py).
-
 ## Documentation
 
 The documentation in [`docs/`](https://github.com/deng-group/atombatch/blob/main/docs) covers installation, models, batched workflows, writing tasks, performance, and the API. Build it with:
 
 ```bash
-uv pip install -e ".[docs]"
+pip install -e ".[docs]"
 sphinx-build -W docs docs/_build/html
 ```
 
