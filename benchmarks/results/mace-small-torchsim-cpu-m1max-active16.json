@@ -1,0 +1,29 @@
+{
+  "model": "mace",
+  "device": "cpu",
+  "path": "small",
+  "machine": "macOS-27.0.1-arm64-arm-64bit",
+  "processor": "arm",
+  "throughput": [
+    {
+      "atoms_per_cell": 40,
+      "batch": 16,
+      "sequential_us_per_atom": 2352.8129546320997,
+      "batched_us_per_atom": 1912.0977201964706
+    }
+  ],
+  "relaxations": {
+    "cells": 64,
+    "atoms_per_cell": 40,
+    "max_active": 16,
+    "evaluations": 2820,
+    "batched_calls": 191,
+    "mean_batch": 14.764397905759163,
+    "sequential_s": 226.24867825000547,
+    "atombatch_s": 124.82159779081121,
+    "atombatch_model_s": 123.87514937692322,
+    "atombatch_other_s": 0.9464484138879925,
+    "speedup": 1.8125763670256498,
+    "same_steps": true
+  }
+}

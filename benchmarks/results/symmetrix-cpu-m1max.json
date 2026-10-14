@@ -1,0 +1,71 @@
+{
+  "model": "symmetrix",
+  "device": "cpu",
+  "path": "0ecae2a6f9f07e45fb123568c0b1c8e5c2fa3f0e725002b262b52a8ee7be236c.json",
+  "machine": "macOS-27.0.1-arm64-arm-64bit",
+  "processor": "arm",
+  "throughput": [
+    {
+      "atoms_per_cell": 40,
+      "batch": 1,
+      "sequential_us_per_atom": 1510.6156904948875,
+      "batched_us_per_atom": 1499.8645754531026
+    },
+    {
+      "atoms_per_cell": 40,
+      "batch": 2,
+      "sequential_us_per_atom": 1510.6156904948875,
+      "batched_us_per_atom": 1502.26041150745
+    },
+    {
+      "atoms_per_cell": 40,
+      "batch": 4,
+      "sequential_us_per_atom": 1510.6156904948875,
+      "batched_us_per_atom": 1731.5713557763956
+    },
+    {
+      "atoms_per_cell": 40,
+      "batch": 8,
+      "sequential_us_per_atom": 1510.6156904948875,
+      "batched_us_per_atom": 1886.9783845730126
+    },
+    {
+      "atoms_per_cell": 40,
+      "batch": 16,
+      "sequential_us_per_atom": 1510.6156904948875,
+      "batched_us_per_atom": 1108.9447267295327
+    },
+    {
+      "atoms_per_cell": 40,
+      "batch": 32,
+      "sequential_us_per_atom": 1510.6156904948875,
+      "batched_us_per_atom": 1659.7590170931653
+    },
+    {
+      "atoms_per_cell": 40,
+      "batch": 64,
+      "sequential_us_per_atom": 1510.6156904948875,
+      "batched_us_per_atom": 1277.771777313319
+    },
+    {
+      "atoms_per_cell": 40,
+      "batch": 128,
+      "sequential_us_per_atom": 1510.6156904948875,
+      "batched_us_per_atom": 1219.8946044918557
+    }
+  ],
+  "relaxations": {
+    "cells": 64,
+    "atoms_per_cell": 40,
+    "max_active": 64,
+    "evaluations": 2659,
+    "batched_calls": 60,
+    "mean_batch": 44.31666666666667,
+    "sequential_s": 162.24918462499045,
+    "atombatch_s": 177.71500058285892,
+    "atombatch_model_s": 176.6552062095143,
+    "atombatch_other_s": 1.05979437334463,
+    "speedup": 0.9129740544853017,
+    "same_steps": true
+  }
+}
