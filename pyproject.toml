@@ -4,20 +4,39 @@ build-backend = "hatchling.build"
 
 [project]
 name = "atombatch"
-version = "0.0.1"
+version = "0.1.0"
 description = "Batch energy and force evaluations from many independent ASE tasks into shared model calls."
 readme = "README.md"
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
+authors = [{ name = "Zeyu Deng" }]
+keywords = ["ase", "atomistic simulation", "machine-learned interatomic potentials", "batching", "gpu", "neb", "phonons"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+]
 requires-python = ">=3.10"
 dependencies = [
     "numpy",
     "ase>=3.23",
 ]
 
+[project.urls]
+Homepage = "https://github.com/deng-group/atombatch"
+Documentation = "https://github.com/deng-group/atombatch/tree/main/docs"
+Issues = "https://github.com/deng-group/atombatch/issues"
+Changelog = "https://github.com/deng-group/atombatch/blob/main/CHANGELOG.md"
+
 [project.optional-dependencies]
-symmetrix = ["symmetrix-xl"]
+phonons = ["phonopy", "phono3py"]
+symmetrix = ["symmetrix-xl>=0.1.1"]
+torchsim = ["torch-sim-atomistic; python_version >= '3.12'"]
 test = ["pytest"]
+docs = ["sphinx", "furo", "myst-parser"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/atombatch"]
