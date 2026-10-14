@@ -1,6 +1,12 @@
 # Installation
 
-atombatch requires Python 3.10 or later, with NumPy and ASE 3.23 or later as its only runtime dependencies. It is not yet on PyPI, so install it from a clone of the repository:
+atombatch requires Python 3.10 or later, with NumPy and ASE 3.23 or later as its only runtime dependencies. Install it from PyPI:
+
+```bash
+pip install atombatch
+```
+
+For development, install it from a clone of the repository:
 
 ```bash
 git clone https://github.com/deng-group/atombatch.git
@@ -19,7 +25,7 @@ Optional extras add the packages for batched models and workflows:
 | `test` | `pytest` | the test suite |
 | `docs` | `sphinx`, `furo`, `myst-parser` | building this documentation |
 
-For example, `uv pip install -e ".[torchsim,phonons]"`. A TorchSim model also needs its model package, such as `mace-torch` for MACE.
+For example, `pip install "atombatch[torchsim,phonons]"`. Symmetrix-XL 0.1.1 on PyPI has Linux wheels only. On macOS, install the `metal-preview-1` wheels from GitHub or build Symmetrix-XL from source, then install atombatch without the `symmetrix` extra and add `matscipy`. A TorchSim model also needs its model package, such as `mace-torch` for MACE.
 
 ## Running the tests
 

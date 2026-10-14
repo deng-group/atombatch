@@ -65,6 +65,14 @@ A machine-learned interatomic potential evaluated on one small structure leaves 
 - MatterSim's [`BatchRelaxer`](https://github.com/microsoft/mattersim/blob/main/src/mattersim/applications/batch_relax.py) steps ASE optimizers in lockstep for relaxations with one model.
 - [i-PI](https://github.com/i-pi/i-pi) batches force requests across replicas and systems within its own simulation engine.
 
+## Installation
+
+```bash
+pip install atombatch
+```
+
+Optional extras: `symmetrix` (Symmetrix-XL and matscipy), `torchsim` (TorchSim models, Python 3.12 or later), and `phonons` (phonopy and phono3py).
+
 ## Documentation
 
 The documentation in [`docs/`](https://github.com/deng-group/atombatch/blob/main/docs) covers installation, models, batched workflows, writing tasks, performance, and the API. Build it with:
