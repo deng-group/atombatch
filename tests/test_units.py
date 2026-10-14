@@ -484,3 +484,50 @@ def test_graph_batcher_is_silent_with_a_compiled_neighbor_list(fake_symmetrix):
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         GraphBatcher(_Calculator())
+
+
+# BatchCalculator.check_state -------------------------------------------------
+
+
+def _changed_pairs():
+    base = bulk("Cu", "fcc", a=3.6, cubic=True)
+    base.set_initial_magnetic_moments([1.0, 0.0, 0.0, 0.0])
+
+    def variant(change):
+        atoms = base.copy()
+        change(atoms)
+        return atoms
+
+    def shift(delta):
+        def change(atoms):
+            atoms.positions[0, 0] += delta
+
+        return change
+
+    return {
+        "identical": variant(lambda atoms: None),
+        "within tolerance": variant(shift(5e-16)),
+        "moved": variant(shift(1e-6)),
+        "cell": variant(lambda atoms: atoms.set_cell(atoms.cell * 1.01)),
+        "pbc": variant(lambda atoms: atoms.set_pbc([True, True, False])),
+        "numbers": variant(lambda atoms: atoms.numbers.__setitem__(0, 79)),
+        "magmoms": variant(lambda atoms: atoms.set_initial_magnetic_moments(None)),
+        "charges": variant(lambda atoms: atoms.set_initial_charges([1, 0, 0, 0])),
+    }, base
+
+
+@pytest.mark.parametrize("ignored", [(), ("initial_magmoms",)])
+def test_check_state_matches_ase(ignored):
+    from ase.calculators.calculator import compare_atoms
+
+    from atombatch import BatchCalculator
+
+    variants, base = _changed_pairs()
+    calculator = BatchCalculator(None, "m")
+    calculator.atoms = base.copy()
+    calculator.ignored_changes = set(ignored)
+    for name, atoms in variants.items():
+        expected = compare_atoms(
+            base, atoms, tol=1e-15, excluded_properties=set(ignored)
+        )
+        assert sorted(calculator.check_state(atoms)) == sorted(expected), name

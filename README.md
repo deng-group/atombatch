@@ -8,10 +8,10 @@ A machine-learned interatomic potential evaluated on one small structure leaves 
 
 | Model | GPU | Throughput gain at 64 cells per call | Relaxations |
 | --- | --- | --- | --- |
-| Symmetrix, MACE-OMat-0 medium (FP32) | NVIDIA RTX 4090 | 11.7x | 1.5x |
-| Symmetrix, MACE-OMat-0 medium (FP64) | NVIDIA RTX 4090 | 5.1x | 2.3x |
-| MACE-MP small via TorchSim (FP32) | NVIDIA RTX 4090 | 4.7x | 3.5x |
-| Symmetrix, MACE-OMat-0 medium (FP32) | Apple M1 Max | 6.2x | 3.0x |
+| Symmetrix, MACE-OMat-0 medium (FP32) | NVIDIA RTX 4090 | 11.7x | 2.4x |
+| Symmetrix, MACE-OMat-0 medium (FP64) | NVIDIA RTX 4090 | 5.5x | 2.9x |
+| MACE-MP small via TorchSim (FP32) | NVIDIA RTX 4090 | 4.6x | 4.1x |
+| Symmetrix, MACE-OMat-0 medium (FP32) | Apple M1 Max | 6.9x | 4.2x |
 
 On a CPU the gain is small and depends on the batch size. See [performance](https://github.com/deng-group/atombatch/blob/main/docs/performance.md) for the full measurements.
 

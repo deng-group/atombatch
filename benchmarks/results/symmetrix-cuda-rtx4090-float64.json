@@ -9,50 +9,50 @@
     {
       "atoms_per_cell": 40,
       "batch": 1,
-      "sequential_us_per_atom": 130.53905131528154,
-      "batched_us_per_atom": 117.59416665881872
+      "sequential_us_per_atom": 140.14878106536344,
+      "batched_us_per_atom": 117.66294483095407
     },
     {
       "atoms_per_cell": 40,
       "batch": 2,
-      "sequential_us_per_atom": 130.53905131528154,
-      "batched_us_per_atom": 64.35975665226579
+      "sequential_us_per_atom": 140.14878106536344,
+      "batched_us_per_atom": 63.75492084771395
     },
     {
       "atoms_per_cell": 40,
       "batch": 4,
-      "sequential_us_per_atom": 130.53905131528154,
-      "batched_us_per_atom": 42.436347575858235
+      "sequential_us_per_atom": 140.14878106536344,
+      "batched_us_per_atom": 42.46922908350825
     },
     {
       "atoms_per_cell": 40,
       "batch": 8,
-      "sequential_us_per_atom": 130.53905131528154,
-      "batched_us_per_atom": 33.450545743107796
+      "sequential_us_per_atom": 140.14878106536344,
+      "batched_us_per_atom": 33.37083908263594
     },
     {
       "atoms_per_cell": 40,
       "batch": 16,
-      "sequential_us_per_atom": 130.53905131528154,
-      "batched_us_per_atom": 27.662837237585336
+      "sequential_us_per_atom": 140.14878106536344,
+      "batched_us_per_atom": 27.600045723374933
     },
     {
       "atoms_per_cell": 40,
       "batch": 32,
-      "sequential_us_per_atom": 130.53905131528154,
-      "batched_us_per_atom": 26.765008078655228
+      "sequential_us_per_atom": 140.14878106536344,
+      "batched_us_per_atom": 26.818512560566887
     },
     {
       "atoms_per_cell": 40,
       "batch": 64,
-      "sequential_us_per_atom": 130.53905131528154,
-      "batched_us_per_atom": 25.445422579650767
+      "sequential_us_per_atom": 140.14878106536344,
+      "batched_us_per_atom": 25.475337679381482
     },
     {
       "atoms_per_cell": 40,
       "batch": 128,
-      "sequential_us_per_atom": 130.53905131528154,
-      "batched_us_per_atom": 37.70996027014917
+      "sequential_us_per_atom": 140.14878106536344,
+      "batched_us_per_atom": 37.68592341657495
     }
   ],
   "relaxations": {
@@ -62,11 +62,11 @@
     "evaluations": 2659,
     "batched_calls": 60,
     "mean_batch": 44.31666666666667,
-    "sequential_s": 14.340093318372965,
-    "atombatch_s": 6.315498041920364,
-    "atombatch_model_s": 4.613569524139166,
-    "atombatch_other_s": 1.701928517781198,
-    "speedup": 2.2706195494302692,
+    "sequential_s": 14.30946241505444,
+    "atombatch_s": 4.942993259988725,
+    "atombatch_model_s": 4.3056219182908535,
+    "atombatch_other_s": 0.6373713416978717,
+    "speedup": 2.894898225106437,
     "same_steps": true
   }
 }

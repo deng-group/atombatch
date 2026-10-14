@@ -9,44 +9,44 @@
     {
       "atoms_per_cell": 40,
       "batch": 1,
-      "sequential_us_per_atom": 298.0519595439546,
-      "batched_us_per_atom": 275.7344162091613
+      "sequential_us_per_atom": 298.2681879075244,
+      "batched_us_per_atom": 276.40662156045437
     },
     {
       "atoms_per_cell": 40,
       "batch": 2,
-      "sequential_us_per_atom": 298.0519595439546,
-      "batched_us_per_atom": 229.75149331614375
+      "sequential_us_per_atom": 298.2681879075244,
+      "batched_us_per_atom": 230.35850608721375
     },
     {
       "atoms_per_cell": 40,
       "batch": 4,
-      "sequential_us_per_atom": 298.0519595439546,
-      "batched_us_per_atom": 208.48234998993576
+      "sequential_us_per_atom": 298.2681879075244,
+      "batched_us_per_atom": 209.10499733872712
     },
     {
       "atoms_per_cell": 40,
       "batch": 8,
-      "sequential_us_per_atom": 298.0519595439546,
-      "batched_us_per_atom": 198.07460193987936
+      "sequential_us_per_atom": 298.2681879075244,
+      "batched_us_per_atom": 198.01082671619952
     },
     {
       "atoms_per_cell": 40,
       "batch": 16,
-      "sequential_us_per_atom": 298.0519595439546,
-      "batched_us_per_atom": 192.75782397016883
+      "sequential_us_per_atom": 298.2681879075244,
+      "batched_us_per_atom": 192.60308326920494
     },
     {
       "atoms_per_cell": 40,
       "batch": 32,
-      "sequential_us_per_atom": 298.0519595439546,
-      "batched_us_per_atom": 191.9869551784359
+      "sequential_us_per_atom": 298.2681879075244,
+      "batched_us_per_atom": 191.8000096338801
     },
     {
       "atoms_per_cell": 40,
       "batch": 64,
-      "sequential_us_per_atom": 298.0519595439546,
-      "batched_us_per_atom": 191.5489003295079
+      "sequential_us_per_atom": 298.2681879075244,
+      "batched_us_per_atom": 191.33518035232555
     }
   ],
   "relaxations": {
@@ -56,11 +56,11 @@
     "evaluations": 2820,
     "batched_calls": 60,
     "mean_batch": 47.0,
-    "sequential_s": 34.129383192397654,
-    "atombatch_s": 24.104496074840426,
-    "atombatch_model_s": 22.590681448578835,
-    "atombatch_other_s": 1.513814626261592,
-    "speedup": 1.4158928312142112,
+    "sequential_s": 34.22958558332175,
+    "atombatch_s": 23.099141241051257,
+    "atombatch_model_s": 22.423564271070063,
+    "atombatch_other_s": 0.6755769699811935,
+    "speedup": 1.48185533072934,
     "same_steps": true
   }
 }

@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from ase.calculators.calculator import Calculator, all_changes
+from ase.calculators.calculator import Calculator, all_changes, equal
 
 from .backends import as_backend
 
@@ -70,6 +70,35 @@ class BatchCalculator(Calculator):
         self._model = model
         self._properties = tuple(dict.fromkeys((*_REQUIRED, *properties)))
         self._group = None
+
+    def check_state(self, atoms, tol=1e-15):
+        """Return the system changes since the last evaluation.
+
+        Same result as :meth:`ase.calculators.calculator.Calculator.check_state`,
+        which ASE calls several times per optimizer step. Arrays are first
+        compared for exact equality, which is much cheaper than ASE's
+        ``np.allclose`` for small structures; ASE's tolerance comparison runs
+        only when they differ.
+        """
+        if self.atoms is None:
+            return list(all_changes)
+        ignored = set(self.ignored_changes)
+        changes = []
+        if "cell" not in ignored and not _same(
+            self.atoms.cell.array, atoms.cell.array, tol
+        ):
+            changes.append("cell")
+        if "pbc" not in ignored and not _same(self.atoms.pbc, atoms.pbc, tol):
+            changes.append("pbc")
+        names = set(all_changes) - ignored - {"cell", "pbc"}
+        arrays1, arrays2 = self.atoms.arrays, atoms.arrays
+        changes += names & (arrays1.keys() ^ arrays2.keys())
+        changes += [
+            prop
+            for prop in names & arrays1.keys() & arrays2.keys()
+            if not _same(arrays1[prop], arrays2[prop], tol)
+        ]
+        return changes
 
     def calculate(self, atoms=None, properties=("energy",), system_changes=all_changes):
         super().calculate(atoms, properties, system_changes)
@@ -278,6 +307,14 @@ class Scheduler:
             self._waiting -= len(calls)
         for call in calls:
             call.event.set()
+
+
+def _same(first, second, tol):
+    # Exact equality implies ASE's tolerance test, so the slower test runs only
+    # for arrays that differ.
+    if first.shape != second.shape:
+        return False
+    return bool((first == second).all()) or equal(first, second, atol=tol)
 
 
 def _chunks(requests, max_atoms):
