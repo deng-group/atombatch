@@ -1,15 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.1.2 (2026-10-15)
 
-- The batched Symmetrix graph is passed as contiguous `int32` arrays instead of Python lists, which the evaluator converted element by element. On an RTX 4090, 64 FP32 relaxations take 1.6 instead of 1.8 s (4.2x faster than a sequential loop), and model throughput at 64 cells per call rose to 14.3x.
-- Cached Symmetrix neighbor lists are updated by one loop compiled with Numba (`atombatch._edges`), with edges identical bit for bit to Symmetrix's own; Symmetrix still decides when to rebuild. The update takes 74 instead of 200 us per 40-atom structure. Batched relaxations now run 3.7x (RTX 4090, FP32) and 4.8x (M1 Max) faster than a sequential loop. The `symmetrix` extra installs Numba; without it, a NumPy version with the same results is used.
-- Batched Symmetrix evaluation keeps one Symmetrix neighbor cache per trajectory and rebuilds neighbor lists only when atoms move beyond the neighbor skin, as the Symmetrix ASE calculator does. Neighbor lists had been rebuilt for every structure at every step and took about 40 % of a batched call. 64 FIRE relaxations now run 3.2x (RTX 4090, FP32) and 5.4x (M1 Max) faster than a sequential ASE loop, with identical step counts. The graph path is used even when `calculate_batch` is available.
-- `BatchCalculator.check_state` compares arrays for exact equality before falling back to ASE's `np.allclose` tolerance, with the same result as ASE. ASE calls it about four times per optimizer step, and it was most of the time outside the model call. Overhead per evaluation fell from about 260 to 100 us, and on an RTX 4090 the speedup of 64 FP32 Symmetrix relaxations over a sequential loop rose from 1.5x to 2.4x with identical step counts.
-- README restructured around installation and a Symmetrix quick start, verified end to end on CUDA.
-- Tested on an NVIDIA RTX 4090 with the Symmetrix-XL 0.1.1 CUDA wheel and with MACE through TorchSim: all tests pass, and the CUDA benchmarks are in `docs/performance.md` and `benchmarks/results/`.
-- The installation guide documents two CUDA environment problems found in testing: the Symmetrix CUDA wheels loading an older `libnvrtc.so` or `libcudart.so`, and Triton needing Python development headers.
-- `ATOMBATCH_MACE_DEVICE` selects the device of the MACE comparison test, and the benchmark script takes `--dtype`.
+Faster batched relaxations, tested on CUDA. On an NVIDIA RTX 4090, 64 FIRE relaxations of 40-atom SrTiO3 cells with Symmetrix (FP32) run 4.2 times faster than a sequential ASE loop (1.5 times in 0.1.1), and 4.8 times on an Apple M1 Max, with identical step counts. Results remain identical to independent ASE runs.
+
+- `BatchCalculator.check_state` compares arrays for exact equality before ASE's `np.allclose` tolerance, with the same result as ASE. ASE calls it about four times per optimizer step; overhead per evaluation fell from about 260 to 100 us.
+- Batched Symmetrix evaluation keeps one Symmetrix neighbor cache per trajectory, so neighbor lists are rebuilt only when atoms move beyond the neighbor skin, as in the Symmetrix ASE calculator. Requests carry the identity of their calculator in `Atoms.info["atombatch_source"]`. The graph path is used even when `calculate_batch` is available.
+- Cached neighbor edges are updated by one loop compiled with Numba (`atombatch._edges`), identical bit for bit to Symmetrix's own (74 instead of 200 us per structure). The `symmetrix` extra installs Numba; without it, a NumPy version with the same results is used.
+- The batched graph is passed to Symmetrix as `int32` arrays instead of Python lists, which were converted element by element.
+- The check for Symmetrix's slow ASE neighbor-list fallback also works with the neighbor-list wrapper of symmetrix-xl PR #2.
+- Tested on an RTX 4090 with the Symmetrix-XL 0.1.1 CUDA wheel and with MACE through TorchSim. The installation guide documents two CUDA environment problems found there: the Symmetrix CUDA wheels loading an older `libnvrtc.so` or `libcudart.so`, and Triton needing Python development headers.
+- README restructured around installation and a Symmetrix quick start. `ATOMBATCH_MACE_DEVICE` selects the device of the MACE test, and the benchmark script takes `--dtype`.
 
 ## 0.1.1 (2026-10-15)
 
