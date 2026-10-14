@@ -432,3 +432,55 @@ def test_swap_monte_carlo_proposes_only_unlike_pairs():
     # A like pair would leave the configuration unchanged after one step.
     for result in results:
         assert result.value["replicas"][0].numbers[0] != 79
+
+
+# Symmetrix neighbor lists ----------------------------------------------------
+
+
+@pytest.fixture
+def fake_symmetrix(monkeypatch):
+    """Install a symmetrix package whose calculator module has a neighbor list."""
+
+    def install(neighbor_list):
+        package = types.ModuleType("symmetrix")
+        module = types.ModuleType("symmetrix.calculator")
+        module.neighbor_list = neighbor_list
+        package.calculator = module
+        monkeypatch.setitem(sys.modules, "symmetrix", package)
+        monkeypatch.setitem(sys.modules, "symmetrix.calculator", module)
+
+    return install
+
+
+class _Calculator:
+    cutoff = 5.0
+
+    evaluator = types.SimpleNamespace(atomic_numbers=(8, 22, 38))
+
+    def _compute_mace(self, mace_inputs, atoms=None):
+        raise NotImplementedError
+
+
+def test_graph_batcher_warns_about_the_ase_neighbor_list(fake_symmetrix):
+    from ase.neighborlist import neighbor_list
+
+    from atombatch.symmetrix import GraphBatcher
+
+    fake_symmetrix(neighbor_list)
+    with pytest.warns(UserWarning, match="matscipy"):
+        GraphBatcher(_Calculator())
+
+
+def test_graph_batcher_is_silent_with_a_compiled_neighbor_list(fake_symmetrix):
+    import warnings
+
+    from atombatch.symmetrix import GraphBatcher
+
+    def neighbor_list(quantities, atoms, cutoff):
+        return ()
+
+    neighbor_list.__module__ = "matscipy.neighbours"
+    fake_symmetrix(neighbor_list)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        GraphBatcher(_Calculator())

@@ -18,7 +18,7 @@ from .tasks import (
     swap_monte_carlo,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     "Backend",

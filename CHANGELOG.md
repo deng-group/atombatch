@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1 (2026-10-15)
+
+- The `symmetrix` extra installs matscipy. Without it, Symmetrix uses ASE's Python neighbor list, and batched relaxations with the `metal-preview-1` wheel ran three times slower than a sequential loop. atombatch now warns when Symmetrix has fallen back to the ASE neighbor list.
+- Tested with the `metal-preview-1` Symmetrix-XL wheels (Metal, no `calculate_batch`): batched results match the Symmetrix calculator, and 64 FIRE relaxations ran 2.0 times faster than a sequential loop with identical step counts.
+- Releases are published to PyPI from GitHub Actions with trusted publishing.
+
 ## 0.1.0 (2026-10-15)
 
 First public release.

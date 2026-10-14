@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "atombatch"
-version = "0.1.0"
+version = "0.1.1"
 description = "Batch energy and force evaluations from many independent ASE tasks into shared model calls."
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -33,7 +33,7 @@ Changelog = "https://github.com/deng-group/atombatch/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 phonons = ["phonopy", "phono3py"]
-symmetrix = ["symmetrix-xl>=0.1.1"]
+symmetrix = ["symmetrix-xl>=0.1.1", "matscipy"]
 torchsim = ["torch-sim-atomistic; python_version >= '3.12'"]
 test = ["pytest"]
 docs = ["sphinx", "furo", "myst-parser"]

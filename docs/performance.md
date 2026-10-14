@@ -14,7 +14,7 @@ Model throughput, in us/atom:
 | Symmetrix, CPU (FP64, one core), sequential 1510 | 1500 | 1730 | 1110 | 1660 | 1280 | 1220 |
 | MACE-MP small via TorchSim, CPU (FP64, 8 threads), sequential 1600 | 1770 | 1460 | 1000 | 1040 | 2950 | 4820 |
 
-Symmetrix ran MACE-OMat-0 medium, built from a Symmetrix-XL source checkout after 0.1.1 with the Apple GPU backend. atombatch's graph path for 0.1.1 gave the same throughput on that build (23.7 against 23.1 us/atom at 64 structures). The CPU rows vary by about 20 % between repeated runs, so differences of that size are noise.
+Symmetrix ran MACE-OMat-0 medium, built from a Symmetrix-XL source checkout after 0.1.1 with the Apple GPU backend. atombatch's graph path for 0.1.1 gave the same throughput on that build (23.7 against 23.1 us/atom at 64 structures). With the `metal-preview-1` Symmetrix wheel, which has Metal but no `calculate_batch` and therefore uses atombatch's graph path, throughput was 40 us/atom at 64 structures per call and the 64 relaxations ran 2.0 times faster than the sequential loop (10.6 against 20.9 s, identical step counts). The CPU rows vary by about 20 % between repeated runs, so differences of that size are noise.
 
 Relaxations of 64 cells:
 

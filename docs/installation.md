@@ -13,7 +13,7 @@ Optional extras add the packages for batched models and workflows:
 
 | Extra | Installs | Needed for |
 | --- | --- | --- |
-| `symmetrix` | `symmetrix-xl` (0.1.1 or later) | batched evaluation with Symmetrix |
+| `symmetrix` | `symmetrix-xl` (0.1.1 or later), `matscipy` | batched evaluation with Symmetrix |
 | `torchsim` | `torch-sim-atomistic` (Python 3.12 or later) | batched MACE, fairchem, SevenNet, ORB, MatterSim, NequIP, Nequix, and metatomic models |
 | `phonons` | `phonopy`, `phono3py` | {func}`~atombatch.displacement_forces` |
 | `test` | `pytest` | the test suite |

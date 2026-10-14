@@ -12,6 +12,7 @@ present since Symmetrix-XL 0.1.1.
 """
 
 import hashlib
+import warnings
 from collections import OrderedDict
 
 import numpy as np
@@ -42,6 +43,15 @@ class GraphBatcher:
         self._type_lookup = np.full(max(numbers) + 1, -1, dtype=np.int64)
         self._type_lookup[numbers] = np.arange(len(numbers))
         self.unsupported = _unsupported_reason(calculator)
+        if uses_ase_neighbor_list():
+            warnings.warn(
+                "Symmetrix is using ASE's Python neighbor list because matscipy "
+                "is not installed. Batched evaluation rebuilds neighbor lists "
+                "for every structure, which then dominates the run time, and "
+                "FP32 results can differ in rounding from the Symmetrix "
+                "calculator. Install matscipy (pip install matscipy).",
+                stacklevel=3,
+            )
 
     def evaluate(self, structures, properties):
         structures = list(structures)
@@ -214,6 +224,13 @@ class GraphBatcher:
                 f"Supported atomic numbers are {supported}."
             )
         return types
+
+
+def uses_ase_neighbor_list():
+    """Return whether Symmetrix fell back to ``ase.neighborlist``."""
+    from symmetrix import calculator
+
+    return calculator.neighbor_list.__module__.startswith("ase.")
 
 
 def edge_forces(evaluator, num_edges):
