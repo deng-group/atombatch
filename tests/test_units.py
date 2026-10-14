@@ -441,10 +441,12 @@ def test_swap_monte_carlo_proposes_only_unlike_pairs():
 def fake_symmetrix(monkeypatch):
     """Install a symmetrix package whose calculator module has a neighbor list."""
 
-    def install(neighbor_list):
+    def install(neighbor_list, **attributes):
         package = types.ModuleType("symmetrix")
         module = types.ModuleType("symmetrix.calculator")
         module.neighbor_list = neighbor_list
+        for name, value in attributes.items():
+            setattr(module, name, value)
         package.calculator = module
         monkeypatch.setitem(sys.modules, "symmetrix", package)
         monkeypatch.setitem(sys.modules, "symmetrix.calculator", module)
@@ -569,3 +571,17 @@ def test_edge_geometry_falls_back_to_numpy(monkeypatch):
         _edges.edge_geometry(*arguments), _edges.edge_geometry_numpy(*arguments)
     ):
         np.testing.assert_array_equal(got, want)
+
+
+@pytest.mark.parametrize("matscipy", [None, object()])
+def test_neighbor_list_check_handles_symmetrix_wrappers(fake_symmetrix, matscipy):
+    # Symmetrix versions with their own neighbor_list wrapper report matscipy
+    # through _matscipy_neighbor_list.
+    from atombatch.symmetrix import uses_ase_neighbor_list
+
+    def neighbor_list(quantities, atoms, cutoff):
+        return ()
+
+    neighbor_list.__module__ = "symmetrix.calculator"
+    fake_symmetrix(neighbor_list, _matscipy_neighbor_list=matscipy)
+    assert uses_ase_neighbor_list() is (matscipy is None)

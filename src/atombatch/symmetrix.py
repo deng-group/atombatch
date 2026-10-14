@@ -311,6 +311,11 @@ def uses_ase_neighbor_list():
     """Return whether Symmetrix fell back to ``ase.neighborlist``."""
     from symmetrix import calculator
 
+    # Later Symmetrix versions wrap the backends in their own neighbor_list
+    # and keep matscipy's function in _matscipy_neighbor_list, None when
+    # matscipy is missing.
+    if hasattr(calculator, "_matscipy_neighbor_list"):
+        return calculator._matscipy_neighbor_list is None
     return calculator.neighbor_list.__module__.startswith("ase.")
 
 
