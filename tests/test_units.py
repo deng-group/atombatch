@@ -531,3 +531,41 @@ def test_check_state_matches_ase(ignored):
             base, atoms, tol=1e-15, excluded_properties=set(ignored)
         )
         assert sorted(calculator.check_state(atoms)) == sorted(expected), name
+
+
+# Edge geometry kernel ----------------------------------------------------------
+
+
+def _random_edges(seed, count=5000, atoms=40):
+    rng = np.random.default_rng(seed)
+    reference = rng.normal(scale=3.0, size=(count, 3))
+    sources = rng.integers(0, atoms, count).astype(np.int32)
+    receivers = np.sort(rng.integers(0, atoms, count)).astype(np.int32)
+    displacements = rng.normal(scale=0.1, size=(atoms, 3))
+    return reference, sources, receivers, displacements
+
+
+@pytest.mark.parametrize("clamp", [False, True])
+def test_compiled_edge_geometry_matches_numpy_bit_for_bit(clamp):
+    from atombatch import _edges
+
+    if _edges.numba is None:
+        pytest.skip("numba is not installed")
+    for seed in range(3):
+        arguments = (*_random_edges(seed), 5.0, clamp)
+        compiled = _edges.edge_geometry(*arguments)
+        reference = _edges.edge_geometry_numpy(*arguments)
+        for got, want in zip(compiled, reference):
+            assert got.dtype == want.dtype
+            np.testing.assert_array_equal(got, want)
+
+
+def test_edge_geometry_falls_back_to_numpy(monkeypatch):
+    from atombatch import _edges
+
+    monkeypatch.setattr(_edges, "numba", None)
+    arguments = (*_random_edges(0), 5.0, False)
+    for got, want in zip(
+        _edges.edge_geometry(*arguments), _edges.edge_geometry_numpy(*arguments)
+    ):
+        np.testing.assert_array_equal(got, want)

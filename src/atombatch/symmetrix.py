@@ -19,6 +19,8 @@ import numpy as np
 from ase.calculators.calculator import all_changes
 from ase.stress import full_3x3_to_voigt_6_stress
 
+from ._edges import edge_geometry
+
 SOURCE_KEY = "atombatch_source"
 
 
@@ -223,26 +225,71 @@ class GraphBatcher:
 
         Each trajectory (one batched calculator) keeps its own Symmetrix
         neighbor cache, which is rebuilt with ``cutoff + neighbor_skin`` only
-        when atoms have moved beyond the skin. The edges are those the
-        Symmetrix ASE calculator would use for the same trajectory.
+        when atoms have moved beyond the skin. Symmetrix decides whether to
+        reuse or rebuild the cache; the edge geometry of the step is then
+        computed by :func:`atombatch._edges.edge_geometry`. The edges are
+        those the Symmetrix ASE calculator would use for the same trajectory.
         """
         calculator = self.calculator
         saved = getattr(calculator, "_neighbor_cache", None)
-        calculator._neighbor_cache = self._trajectory_caches.pop(source, None)
+        previous = self._trajectory_caches.pop(source, None)
+        calculator._neighbor_cache = previous
         try:
-            i_list, j_list, r, xyz = calculator._cached_neighbor_geometry(
-                atoms, native_geometry=False, allow_device_neighbor_graph=False
+            generation = None if previous is None else previous.geometry_generation
+            # Called with native_geometry=True, Symmetrix updates the cache and
+            # returns before computing the edge geometry on the host.
+            edges = calculator._cached_neighbor_geometry(
+                atoms, native_geometry=True, allow_device_neighbor_graph=False
             )
-            self._trajectory_caches[source] = calculator._neighbor_cache
+            cache = calculator._neighbor_cache
+            if edges[2] is None:
+                edges = self._edge_geometry(atoms, cache, previous, generation)
+            self._trajectory_caches[source] = cache
         finally:
             calculator._neighbor_cache = saved
         while len(self._trajectory_caches) > self.trajectory_cache_size:
             self._trajectory_caches.popitem(last=False)
+        i_list, j_list, r, xyz = edges
         return (
             np.asarray(i_list),
             np.asarray(j_list),
             np.asarray(r, dtype=np.float64),
             np.asarray(xyz, dtype=np.float64),
+        )
+
+    def _edge_geometry(self, atoms, cache, previous, generation):
+        """Return the edges of a cache that Symmetrix has just updated."""
+        from symmetrix.calculator import _PREPARED_EXECUTION_MODES
+
+        calculator = self.calculator
+        positions = np.asarray(atoms.positions, dtype=float)
+        if cache is previous and cache.geometry_generation == generation:
+            # Reused without a geometry reset: the displacements since the
+            # reference positions, as Symmetrix computes them.
+            pbc = np.asarray(atoms.pbc, dtype=bool)
+            reference = (
+                cache.reference_positions
+                if np.all(pbc) and cache.fractional_geometry_eligible
+                else cache.topology_reference_positions
+            )
+            displacements = calculator._minimum_image_displacements(
+                positions, reference, np.asarray(atoms.cell, dtype=float), pbc
+            )
+        else:
+            # Built or reset in this call: the reference is the current state.
+            displacements = np.zeros_like(positions)
+        calculator._materialize_neighbor_cache_geometry()
+        clamp = (
+            getattr(calculator.evaluator, "streamed_edges_mode", None)
+            in _PREPARED_EXECUTION_MODES
+        )
+        return edge_geometry(
+            cache.reference_xyz,
+            cache.sources,
+            cache.receivers,
+            displacements,
+            calculator.cutoff,
+            clamp,
         )
 
     def _node_types(self, numbers):

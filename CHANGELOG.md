@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Cached Symmetrix neighbor lists are updated by one loop compiled with Numba (`atombatch._edges`), with edges identical bit for bit to Symmetrix's own; Symmetrix still decides when to rebuild. The update takes 74 instead of 200 us per 40-atom structure. Batched relaxations now run 3.7x (RTX 4090, FP32) and 4.8x (M1 Max) faster than a sequential loop. The `symmetrix` extra installs Numba; without it, a NumPy version with the same results is used.
 - Batched Symmetrix evaluation keeps one Symmetrix neighbor cache per trajectory and rebuilds neighbor lists only when atoms move beyond the neighbor skin, as the Symmetrix ASE calculator does. Neighbor lists had been rebuilt for every structure at every step and took about 40 % of a batched call. 64 FIRE relaxations now run 3.2x (RTX 4090, FP32) and 5.4x (M1 Max) faster than a sequential ASE loop, with identical step counts. The graph path is used even when `calculate_batch` is available.
 - `BatchCalculator.check_state` compares arrays for exact equality before falling back to ASE's `np.allclose` tolerance, with the same result as ASE. ASE calls it about four times per optimizer step, and it was most of the time outside the model call. Overhead per evaluation fell from about 260 to 100 us, and on an RTX 4090 the speedup of 64 FP32 Symmetrix relaxations over a sequential loop rose from 1.5x to 2.4x with identical step counts.
 - README restructured around installation and a Symmetrix quick start, verified end to end on CUDA.

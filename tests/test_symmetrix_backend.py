@@ -154,3 +154,38 @@ def test_trajectory_neighbor_cache_matches_the_calculator(symmetrix_calculator):
     reused = reference.neighbor_cache_reuse_count - rebuilds
     assert 0 < reused < 6
     assert symmetrix_calculator._neighbor_cache is not batcher._trajectory_caches[7]
+
+
+@pytest.mark.parametrize("compiled", [True, False])
+def test_trajectory_edges_equal_the_calculator_bit_for_bit(
+    symmetrix_calculator, compiled, monkeypatch
+):
+    # Reused, rebuilt, and cell-reset caches all give the calculator's edges.
+    from symmetrix import Symmetrix
+
+    from atombatch import _edges
+
+    if not compiled:
+        monkeypatch.setattr(_edges, "numba", None)
+    batcher = GraphBatcher(Symmetrix(MODEL, dtype="float64"))
+    reference = Symmetrix(MODEL, dtype="float64")
+    rng = np.random.default_rng(1)
+    atoms = _perovskite(3)
+    for step in range(30):
+        snapshot = atoms.copy()
+        snapshot.info[SOURCE_KEY] = 0
+        got = batcher._neighbors(snapshot)
+        want = reference._cached_neighbor_geometry(
+            atoms, native_geometry=False, allow_device_neighbor_graph=False
+        )
+        for value, expected in zip(got, want):
+            np.testing.assert_array_equal(value, expected)
+        kind = step % 10
+        if kind < 6:
+            atoms.positions += rng.normal(scale=0.01, size=atoms.positions.shape)
+        elif kind < 8:
+            atoms.set_cell(atoms.cell * (1 + rng.normal(scale=0.003)), scale_atoms=True)
+        else:
+            atoms.positions += rng.normal(scale=0.15, size=atoms.positions.shape)
+    assert reference.neighbor_cache_build_count > 1
+    assert reference.neighbor_cache_reuse_count > 10

@@ -8,10 +8,10 @@ A machine-learned interatomic potential evaluated on one small structure leaves 
 
 | Model | GPU | Throughput gain at 64 cells per call | Relaxations |
 | --- | --- | --- | --- |
-| Symmetrix, MACE-OMat-0 medium (FP32) | NVIDIA RTX 4090 | 11.7x | 3.2x |
-| Symmetrix, MACE-OMat-0 medium (FP64) | NVIDIA RTX 4090 | 5.5x | 3.3x |
+| Symmetrix, MACE-OMat-0 medium (FP32) | NVIDIA RTX 4090 | 11.7x | 3.7x |
+| Symmetrix, MACE-OMat-0 medium (FP64) | NVIDIA RTX 4090 | 5.5x | 3.6x |
 | MACE-MP small via TorchSim (FP32) | NVIDIA RTX 4090 | 4.6x | 4.1x |
-| Symmetrix, MACE-OMat-0 medium (FP32) | Apple M1 Max | 5.6x | 5.4x |
+| Symmetrix, MACE-OMat-0 medium (FP32) | Apple M1 Max | 6.3x | 4.8x |
 
 On a CPU the gain is small and depends on the batch size. See [performance](https://github.com/deng-group/atombatch/blob/main/docs/performance.md) for the full measurements.
 
@@ -25,13 +25,13 @@ atombatch needs Python 3.10 or later, NumPy, and ASE. The model is installed sep
 
 ### Symmetrix
 
-[Symmetrix-XL](https://github.com/bonan-group/symmetrix-xl) evaluates MACE models natively on CPUs and GPUs. Install the package for your hardware together with matscipy, which Symmetrix needs for fast neighbor lists:
+[Symmetrix-XL](https://github.com/bonan-group/symmetrix-xl) evaluates MACE models natively on CPUs and GPUs. Install the package for your hardware together with matscipy, which Symmetrix needs for fast neighbor lists, and Numba, which atombatch uses to update cached neighbor lists:
 
 | Hardware | Install |
 | --- | --- |
 | Linux, CPU | `pip install "atombatch[symmetrix]"` |
-| Linux, NVIDIA GPU | `pip install atombatch matscipy symmetrix-xl-cuda12-sm89` (choose `sm80`, `sm86`, `sm89`, `sm90`, or `cuda13-sm120` for your GPU, or run `symmetrix backend install` after installing `symmetrix-xl`) |
-| macOS, Apple GPU | `pip install atombatch matscipy` and the macOS wheel from the Symmetrix-XL [metal-preview-1](https://github.com/deng-group/symmetrix-xl/releases/tag/metal-preview-1) release |
+| Linux, NVIDIA GPU | `pip install atombatch matscipy numba symmetrix-xl-cuda12-sm89` (choose `sm80`, `sm86`, `sm89`, `sm90`, or `cuda13-sm120` for your GPU, or run `symmetrix backend install` after installing `symmetrix-xl`) |
+| macOS, Apple GPU | `pip install atombatch matscipy numba` and the macOS wheel from the Symmetrix-XL [metal-preview-1](https://github.com/deng-group/symmetrix-xl/releases/tag/metal-preview-1) release |
 
 Symmetrix evaluates a JSON export of a MACE model. For example, for MACE-MP-0b medium (the conversion needs `mace-torch`):
 
