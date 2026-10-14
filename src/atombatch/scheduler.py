@@ -11,6 +11,7 @@ from ase.calculators.calculator import Calculator, all_changes, equal
 from .backends import as_backend
 
 _REQUIRED = ("energy", "forces")
+SOURCE_KEY = "atombatch_source"
 
 
 @dataclass
@@ -113,7 +114,8 @@ class BatchCalculator(Calculator):
             if stale:
                 members.append((calculator, other))
         results = self._scheduler._evaluate(
-            [(calculator._model, other, requested) for calculator, other in members]
+            [(calculator._model, other, requested) for calculator, other in members],
+            sources=[id(calculator) for calculator, _ in members],
         )
         for (calculator, other), result in zip(members, results):
             if calculator is not self:
@@ -258,13 +260,17 @@ class Scheduler:
                 self._active.discard(task.name)
                 self._condition.notify_all()
 
-    def _evaluate(self, items):
-        call = _Call(
-            [
-                _Request(model, atoms.copy(), properties)
-                for model, atoms, properties in items
-            ]
-        )
+    def _evaluate(self, items, sources=None):
+        requests = []
+        for index, (model, atoms, properties) in enumerate(items):
+            snapshot = atoms.copy()
+            if sources is not None:
+                # Identifies the trajectory a structure belongs to, so that
+                # backends can reuse per-trajectory state such as neighbor
+                # lists between steps.
+                snapshot.info[SOURCE_KEY] = sources[index]
+            requests.append(_Request(model, snapshot, properties))
+        call = _Call(requests)
         with self._condition:
             self._pending.append(call)
             self._waiting += 1

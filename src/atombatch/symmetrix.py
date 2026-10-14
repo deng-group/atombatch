@@ -19,6 +19,8 @@ import numpy as np
 from ase.calculators.calculator import all_changes
 from ase.stress import full_3x3_to_voigt_6_stress
 
+SOURCE_KEY = "atombatch_source"
+
 
 def supports_graph_batching(calculator):
     """Return whether ``calculator`` exposes the evaluator calls used here."""
@@ -35,10 +37,12 @@ class GraphBatcher:
     lattice, share a neighbor list.
     """
 
-    def __init__(self, calculator, neighbor_cache_size=64):
+    def __init__(self, calculator, neighbor_cache_size=64, trajectory_cache_size=1024):
         self.calculator = calculator
         self.neighbor_cache_size = int(neighbor_cache_size)
         self._neighbor_cache = OrderedDict()
+        self.trajectory_cache_size = int(trajectory_cache_size)
+        self._trajectory_caches = OrderedDict()
         numbers = [int(value) for value in calculator.evaluator.atomic_numbers]
         self._type_lookup = np.full(max(numbers) + 1, -1, dtype=np.int64)
         self._type_lookup[numbers] = np.arange(len(numbers))
@@ -178,6 +182,9 @@ class GraphBatcher:
 
     def _neighbors(self, atoms):
         """Return receiver-major ``(i, j, r, xyz)`` edges of one structure."""
+        source = atoms.info.get(SOURCE_KEY)
+        if source is not None and getattr(self.calculator, "neighbor_skin", 0.0) > 0:
+            return self._trajectory_neighbors(atoms, source)
         from symmetrix.calculator import (
             _receiver_major_neighbor_arrays,
             neighbor_list,
@@ -210,6 +217,33 @@ class GraphBatcher:
             while len(self._neighbor_cache) > self.neighbor_cache_size:
                 self._neighbor_cache.popitem(last=False)
         return cached
+
+    def _trajectory_neighbors(self, atoms, source):
+        """Return edges from the Symmetrix neighbor cache of one trajectory.
+
+        Each trajectory (one batched calculator) keeps its own Symmetrix
+        neighbor cache, which is rebuilt with ``cutoff + neighbor_skin`` only
+        when atoms have moved beyond the skin. The edges are those the
+        Symmetrix ASE calculator would use for the same trajectory.
+        """
+        calculator = self.calculator
+        saved = getattr(calculator, "_neighbor_cache", None)
+        calculator._neighbor_cache = self._trajectory_caches.pop(source, None)
+        try:
+            i_list, j_list, r, xyz = calculator._cached_neighbor_geometry(
+                atoms, native_geometry=False, allow_device_neighbor_graph=False
+            )
+            self._trajectory_caches[source] = calculator._neighbor_cache
+        finally:
+            calculator._neighbor_cache = saved
+        while len(self._trajectory_caches) > self.trajectory_cache_size:
+            self._trajectory_caches.popitem(last=False)
+        return (
+            np.asarray(i_list),
+            np.asarray(j_list),
+            np.asarray(r, dtype=np.float64),
+            np.asarray(xyz, dtype=np.float64),
+        )
 
     def _node_types(self, numbers):
         numbers = np.asarray(numbers, dtype=np.int64)

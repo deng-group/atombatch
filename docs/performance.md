@@ -4,7 +4,7 @@ This page reports measurements and explains what determines the cost of a run, s
 
 ## Measurements
 
-All runs used rattled SrTiO{sub}`3` supercells of 40 atoms, with `benchmarks/bench_batching.py` (see `benchmarks/README.md`). The sequential baseline evaluates one structure per call through the model's own ASE calculator. The relaxation benchmark runs 64 FIRE relaxations (`fmax=0.05`), once as a plain ASE loop and once through atombatch. Every batched run took the same number of optimizer steps as the sequential run. The GPU rows were measured with the faster `BatchCalculator.check_state` of atombatch 0.1.2 (see below), and the CPU rows with 0.1.1.
+All runs used rattled SrTiO{sub}`3` supercells of 40 atoms, with `benchmarks/bench_batching.py` (see `benchmarks/README.md`). The sequential baseline evaluates one structure per call through the model's own ASE calculator. The relaxation benchmark runs 64 FIRE relaxations (`fmax=0.05`), once as a plain ASE loop and once through atombatch. Every batched run took the same number of optimizer steps as the sequential run. The GPU rows were measured with atombatch 0.1.2 (faster `check_state` and per-trajectory Symmetrix neighbor lists, see below), and the CPU rows with 0.1.1.
 
 ### Apple M1 Max (10 CPU cores, 32-core GPU)
 
@@ -22,7 +22,7 @@ Relaxations of 64 cells:
 
 | Model and device | `max_active` | Mean batch | Sequential | atombatch (model + other) | Speedup |
 | --- | --- | --- | --- | --- | --- |
-| Symmetrix, Metal GPU | 64 | 44 | 21.7 s | 5.2 s (4.90 + 0.31) | 4.2x |
+| Symmetrix, Metal GPU | 64 | 44 | 23.4 s | 4.3 s (3.96 + 0.34) | 5.4x |
 | Symmetrix, CPU | 64 | 44 | 162 s | 178 s (176.7 + 1.1) | 0.9x |
 | MACE via TorchSim, CPU | 64 | 47 | 185 s | 268 s (266.5 + 1.5) | 0.7x |
 | MACE via TorchSim, CPU | 16 | 15 | 226 s | 125 s (123.9 + 1.0) | 1.8x |
@@ -42,8 +42,8 @@ Model throughput in us/atom against structures per call. Relaxations of 64 cells
 
 | Model and precision | Sequential | atombatch (model + other) | Speedup |
 | --- | --- | --- | --- |
-| Symmetrix FP32 | 6.6 s | 2.8 s (2.1 + 0.6) | 2.4x |
-| Symmetrix FP64 | 14.3 s | 4.9 s (4.3 + 0.6) | 2.9x |
+| Symmetrix FP32 | 6.6 s | 2.0 s (1.4 + 0.6) | 3.2x |
+| Symmetrix FP64 | 14.3 s | 4.3 s (3.7 + 0.6) | 3.3x |
 | MACE via TorchSim FP32 | 23.4 s | 5.8 s (5.1 + 0.7) | 4.1x |
 | MACE via TorchSim FP64 | 34.2 s | 23.1 s (22.4 + 0.7) | 1.5x |
 
@@ -51,7 +51,7 @@ All runs took the same optimizer steps as the sequential loop. FP64 is slow on t
 
 Three conclusions follow from these numbers.
 
-- On the GPUs, batching reduced the cost per atom 5 to 12 times at 64 structures per call (FP32 Symmetrix and MACE, and FP64 Symmetrix) and made the relaxations 2.4 to 4.2 times faster. The relaxation gain is smaller than the throughput gain because relaxations finish at different times, so the mean batch (44) is below `max_active` and the last rounds are nearly empty. Throughput fell again at 128 structures per call, so larger is not always better.
+- On the GPUs, batching reduced the cost per atom 5 to 12 times at 64 structures per call (FP32 Symmetrix and MACE, and FP64 Symmetrix) and made the relaxations 3.2 to 5.4 times faster. The relaxation gain is smaller than the throughput gain because relaxations finish at different times, so the mean batch (44) is below `max_active` and the last rounds are nearly empty. Throughput fell again at 128 structures per call, so larger is not always better.
 - The time outside the model call is now 0.1 to 0.25 ms per evaluation, 6 to 22 % of the GPU runs. Most of it is ASE's own per-step work (see below), and on fast GPUs it still sets the limit for small cells.
 - On the CPU, the gain depends on the model and on the batch size. The single-core Symmetrix build is compute-bound and gains nothing. MACE through TorchSim with 8 threads gained about 1.6 times at 16 to 32 structures per call and lost at 64 and above, so `max_active=16` gave a 1.8x speedup where `max_active=64` gave a slowdown. On a CPU, measure before choosing `max_active`.
 
@@ -60,6 +60,8 @@ Three conclusions follow from these numbers.
 The scheduler evaluates once every running task is either waiting on a request or finished. A round therefore costs the batched model calls plus the Python step logic of all running tasks (optimizer updates, NEB tangents, integrator steps). That step logic runs under the GIL, one task after another. The model call usually dominates.
 
 With a model that costs almost nothing (a harmonic potential), a FIRE step on a 40-atom cell cost about 210 to 320 us in a plain ASE loop on the M1 Max, and about 100 us per evaluation through atombatch, independent of `max_active` (1, 8, or 64). Thread hand-offs and the scheduler itself therefore add almost nothing. Most of ASE's cost was `Calculator.check_state`, which ASE calls about four times per step and which compares every array of the structure with `np.allclose`; for small arrays each call costs about 15 us of Python and NumPy overhead. Since 0.1.2, `BatchCalculator.check_state` first compares arrays for exact equality and falls back to ASE's tolerance only when they differ, which gives the same result as ASE and cut atombatch's time per evaluation from about 260 to 100 us. The remainder is mostly copying `Atoms` and the optimizer update.
+
+Inside a batched Symmetrix call, building neighbor lists on the CPU took about 40 % of the call for 64 cells of 40 atoms on the M1 Max (46 of 112 ms), because every structure was given a fresh list at every step. The Symmetrix ASE calculator avoids this with a neighbor skin (0.5 A by default): it builds the list with `cutoff + neighbor_skin` and rebuilds only when atoms have moved more than half the skin. Since 0.1.2, atombatch keeps one such Symmetrix neighbor cache per trajectory, so each task's edges are those the Symmetrix calculator would use for the same trajectory, and the 64-cell call took 79 instead of 147 ms in a relaxation-like sequence. The throughput table above feeds unrelated structures and is not affected.
 
 {attr}`~atombatch.Scheduler.batch_log` records every call as `(model, structures, atoms)` and is the first thing to check: it shows whether batches are as large as intended.
 

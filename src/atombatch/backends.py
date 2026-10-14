@@ -54,11 +54,14 @@ class SequentialBackend(Backend):
 class SymmetrixBackend(Backend):
     """Evaluate structures with a Symmetrix calculator in one native call.
 
-    Releases with ``Symmetrix.calculate_batch`` evaluate the batch themselves.
-    For earlier releases (from Symmetrix-XL 0.1.1), atombatch joins the
-    structures into one disconnected neighbor graph and calls the evaluator
-    directly (:mod:`atombatch.symmetrix`). Models with dispersion corrections
-    or electric-field coupling fall back to one ASE evaluation per structure.
+    atombatch joins the structures into one disconnected neighbor graph and
+    calls the Symmetrix evaluator directly (:mod:`atombatch.symmetrix`), with
+    one Symmetrix neighbor cache per trajectory so that neighbor lists are
+    rebuilt only when atoms move beyond the neighbor skin. This works from
+    Symmetrix-XL 0.1.1; ``Symmetrix.calculate_batch`` is used only for
+    calculators without the evaluator interface. Models with dispersion
+    corrections or electric-field coupling fall back to one ASE evaluation
+    per structure.
     """
 
     def __init__(self, calculator, max_atoms=None, batch_mode="native"):
@@ -66,14 +69,13 @@ class SymmetrixBackend(Backend):
         self.max_atoms = max_atoms
         self.batch_mode = batch_mode
         self._graph = None
-        if callable(getattr(calculator, "calculate_batch", None)):
-            return
-        if not supports_graph_batching(calculator):
+        if supports_graph_batching(calculator):
+            self._graph = GraphBatcher(calculator)
+        elif not callable(getattr(calculator, "calculate_batch", None)):
             raise TypeError(
                 "SymmetrixBackend requires a Symmetrix calculator "
                 "(Symmetrix-XL 0.1.1 or later)."
             )
-        self._graph = GraphBatcher(calculator)
 
     def evaluate(self, structures, properties):
         if self._graph is not None:

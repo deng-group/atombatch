@@ -7,7 +7,12 @@ from ase.optimize import FIRE
 from ase.stress import full_3x3_to_voigt_6_stress
 
 from atombatch import Scheduler, SymmetrixBackend, relax, single_point
-from atombatch.symmetrix import GraphBatcher, edge_forces, segment_virials
+from atombatch.symmetrix import (
+    SOURCE_KEY,
+    GraphBatcher,
+    edge_forces,
+    segment_virials,
+)
 
 MODEL = os.environ.get("ATOMBATCH_SYMMETRIX_MODEL")
 
@@ -24,10 +29,10 @@ def symmetrix_calculator():
 def backend(request, symmetrix_calculator):
     """Both batched paths: Symmetrix's own, and atombatch's for 0.1.1."""
     backend = SymmetrixBackend(symmetrix_calculator)
-    if request.param == "graph":
-        backend._graph = GraphBatcher(symmetrix_calculator)
-    elif backend._graph is not None:
-        pytest.skip("installed Symmetrix has no calculate_batch")
+    if request.param == "calculate_batch":
+        if not callable(getattr(symmetrix_calculator, "calculate_batch", None)):
+            pytest.skip("installed Symmetrix has no calculate_batch")
+        backend._graph = None
     return backend
 
 
@@ -122,3 +127,30 @@ def test_pair_force_stress_matches_its_ase_calculator(symmetrix_calculator):
             reference.get_stress(),
             atol=1e-10,
         )
+
+
+def test_trajectory_neighbor_cache_matches_the_calculator(symmetrix_calculator):
+    # A relaxation reuses one neighbor cache per trajectory, as the Symmetrix
+    # ASE calculator does, so the edges match its own at every step.
+    from symmetrix import Symmetrix
+
+    batcher = GraphBatcher(symmetrix_calculator)
+    reference = Symmetrix(MODEL, dtype="float64")
+    atoms = _perovskite(0)
+    rng = np.random.default_rng(0)
+    rebuilds = reference.neighbor_cache_reuse_count
+    for step in range(6):
+        snapshot = atoms.copy()
+        snapshot.info[SOURCE_KEY] = 7
+        cached = batcher._neighbors(snapshot)
+        expected = reference._cached_neighbor_geometry(
+            atoms, native_geometry=False, allow_device_neighbor_graph=False
+        )
+        for got, want in zip(cached, expected):
+            np.testing.assert_array_equal(got, want)
+        # Small moves reuse the cache; the cumulative moves exceed half the
+        # skin and force a rebuild.
+        atoms.positions += rng.normal(scale=0.06, size=atoms.positions.shape)
+    reused = reference.neighbor_cache_reuse_count - rebuilds
+    assert 0 < reused < 6
+    assert symmetrix_calculator._neighbor_cache is not batcher._trajectory_caches[7]

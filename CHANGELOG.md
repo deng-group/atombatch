@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Batched Symmetrix evaluation keeps one Symmetrix neighbor cache per trajectory and rebuilds neighbor lists only when atoms move beyond the neighbor skin, as the Symmetrix ASE calculator does. Neighbor lists had been rebuilt for every structure at every step and took about 40 % of a batched call. 64 FIRE relaxations now run 3.2x (RTX 4090, FP32) and 5.4x (M1 Max) faster than a sequential ASE loop, with identical step counts. The graph path is used even when `calculate_batch` is available.
 - `BatchCalculator.check_state` compares arrays for exact equality before falling back to ASE's `np.allclose` tolerance, with the same result as ASE. ASE calls it about four times per optimizer step, and it was most of the time outside the model call. Overhead per evaluation fell from about 260 to 100 us, and on an RTX 4090 the speedup of 64 FP32 Symmetrix relaxations over a sequential loop rose from 1.5x to 2.4x with identical step counts.
 - README restructured around installation and a Symmetrix quick start, verified end to end on CUDA.
 - Tested on an NVIDIA RTX 4090 with the Symmetrix-XL 0.1.1 CUDA wheel and with MACE through TorchSim: all tests pass, and the CUDA benchmarks are in `docs/performance.md` and `benchmarks/results/`.
