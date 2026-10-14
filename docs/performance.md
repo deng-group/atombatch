@@ -33,8 +33,8 @@ With the Symmetrix-XL 0.1.1 CUDA wheel (`symmetrix-xl-cuda12-sm89`, batched thro
 
 | Model and precision | Sequential | 4 | 16 | 64 | 128 | Gain at 64 |
 | --- | --- | --- | --- | --- | --- | --- |
-| Symmetrix FP32 | 62 | 15 | 6.5 | 5.3 | 18 | 11.7x |
-| Symmetrix FP64 | 140 | 43 | 28 | 26 | 38 | 5.5x |
+| Symmetrix FP32 | 62 | 13 | 5.6 | 4.3 | 15 | 14.3x |
+| Symmetrix FP64 | 132 | 42 | 27 | 25 | 37 | 5.4x |
 | MACE via TorchSim FP32 | 204 | 55 | 46 | 44 | 44 | 4.6x |
 | MACE via TorchSim FP64 | 298 | 209 | 193 | 191 | out of memory | 1.6x |
 
@@ -42,8 +42,8 @@ Model throughput in us/atom against structures per call. Relaxations of 64 cells
 
 | Model and precision | Sequential | atombatch (model + other) | Speedup |
 | --- | --- | --- | --- |
-| Symmetrix FP32 | 6.5 s | 1.8 s (1.1 + 0.7) | 3.7x |
-| Symmetrix FP64 | 14.3 s | 4.0 s (3.4 + 0.6) | 3.6x |
+| Symmetrix FP32 | 6.5 s | 1.6 s (0.9 + 0.6) | 4.2x |
+| Symmetrix FP64 | 14.3 s | 3.9 s (3.2 + 0.6) | 3.7x |
 | MACE via TorchSim FP32 | 23.4 s | 5.8 s (5.1 + 0.7) | 4.1x |
 | MACE via TorchSim FP64 | 34.2 s | 23.1 s (22.4 + 0.7) | 1.5x |
 
@@ -51,7 +51,7 @@ All runs took the same optimizer steps as the sequential loop. FP64 is slow on t
 
 Three conclusions follow from these numbers.
 
-- On the GPUs, batching reduced the cost per atom 5 to 12 times at 64 structures per call (FP32 Symmetrix and MACE, and FP64 Symmetrix) and made the relaxations 3.6 to 4.8 times faster. The relaxation gain is smaller than the throughput gain because relaxations finish at different times, so the mean batch (44) is below `max_active` and the last rounds are nearly empty. Throughput fell again at 128 structures per call, so larger is not always better.
+- On the GPUs, batching reduced the cost per atom 5 to 14 times at 64 structures per call (FP32 Symmetrix and MACE, and FP64 Symmetrix) and made the relaxations 3.7 to 4.8 times faster. The relaxation gain is smaller than the throughput gain because relaxations finish at different times, so the mean batch (44) is below `max_active` and the last rounds are nearly empty. Throughput fell again at 128 structures per call, so larger is not always better.
 - The time outside the model call is now 0.1 to 0.25 ms per evaluation, 6 to 22 % of the GPU runs. Most of it is ASE's own per-step work (see below), and on fast GPUs it still sets the limit for small cells.
 - On the CPU, the gain depends on the model and on the batch size. The single-core Symmetrix build is compute-bound and gains nothing. MACE through TorchSim with 8 threads gained about 1.6 times at 16 to 32 structures per call and lost at 64 and above, so `max_active=16` gave a 1.8x speedup where `max_active=64` gave a slowdown. On a CPU, measure before choosing `max_active`.
 
@@ -63,7 +63,7 @@ With a model that costs almost nothing (a harmonic potential), a FIRE step on a 
 
 Inside a batched Symmetrix call, building neighbor lists on the CPU took about 40 % of the call for 64 cells of 40 atoms on the M1 Max (46 of 112 ms), because every structure was given a fresh list at every step. The Symmetrix ASE calculator avoids this with a neighbor skin (0.5 A by default): it builds the list with `cutoff + neighbor_skin` and rebuilds only when atoms have moved more than half the skin. Since 0.1.2, atombatch keeps one such Symmetrix neighbor cache per trajectory, so each task's edges are those the Symmetrix calculator would use for the same trajectory, and the 64-cell call took 79 instead of 147 ms in a relaxation-like sequence. The throughput table above feeds unrelated structures and is not affected.
 
-With the cache in place, a 64-relaxation run built neighbor lists only once per trajectory (0.04 s in total on the M1 Max), so a faster neighbor-list library would gain almost nothing. The remaining cost was updating the cached edges at every step: Symmetrix recomputes the edge vectors and lengths of about 3800 edges per 40-atom cell in several NumPy passes, about 200 us per structure. atombatch lets Symmetrix decide whether to reuse or rebuild the cache and computes the edge geometry itself in one loop compiled with Numba (`atombatch._edges`), which takes 74 us per structure. The loop performs the same floating-point operations in the same order as Symmetrix, without fused multiply-adds, so its edges are identical bit for bit; the tests check this over reused, rebuilt, and cell-reset caches. Without Numba, a NumPy version with the same results is used. This reduced the batched relaxations from 4.3 to 3.5 s on the M1 Max and from 2.0 to 1.8 s on the RTX 4090 (FP32).
+With the cache in place, a 64-relaxation run built neighbor lists only once per trajectory (0.04 s in total on the M1 Max), so a faster neighbor-list library would gain almost nothing. The remaining cost was updating the cached edges at every step: Symmetrix recomputes the edge vectors and lengths of about 3800 edges per 40-atom cell in several NumPy passes, about 200 us per structure. atombatch lets Symmetrix decide whether to reuse or rebuild the cache and computes the edge geometry itself in one loop compiled with Numba (`atombatch._edges`), which takes 74 us per structure. The loop performs the same floating-point operations in the same order as Symmetrix, without fused multiply-adds, so its edges are identical bit for bit; the tests check this over reused, rebuilt, and cell-reset caches. Without Numba, a NumPy version with the same results is used. This reduced the batched relaxations from 4.3 to 3.5 s on the M1 Max and from 2.0 to 1.8 s on the RTX 4090 (FP32). Finally, the graph is passed to Symmetrix as contiguous `int32` arrays, which its bindings accept without copying; Python lists of the roughly 250,000 neighbor types per call had been converted element by element. On the RTX 4090 this reduced the FP32 relaxations from 1.8 to 1.6 s.
 
 {attr}`~atombatch.Scheduler.batch_log` records every call as `(model, structures, atoms)` and is the first thing to check: it shows whether batches are as large as intended.
 

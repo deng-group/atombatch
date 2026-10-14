@@ -120,7 +120,7 @@ class GraphBatcher:
         node_types = self._node_types(
             np.concatenate([atoms.numbers for atoms in structures])
         )
-        num_neigh = np.bincount(i_list, minlength=num_nodes)
+        num_neigh = np.bincount(i_list, minlength=num_nodes).astype(np.int32)
 
         properties = ["energy", "forces"] + (["stress"] if compute_stress else [])
         tuning = getattr(calculator, "_apply_kernel_launch_tuning", None)
@@ -128,10 +128,12 @@ class GraphBatcher:
             tuning(num_nodes, len(i_list), properties)
         mace_inputs = (
             num_nodes,
-            node_types.tolist(),
+            # The evaluator takes contiguous int32 arrays without copying;
+            # Python lists would be converted element by element.
+            node_types.astype(np.int32),
             num_neigh,
             j_list,
-            node_types[j_list].tolist(),
+            node_types[j_list].astype(np.int32),
             xyz,
             r,
             i_list,
