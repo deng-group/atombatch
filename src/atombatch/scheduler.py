@@ -93,7 +93,7 @@ class BatchCalculator(Calculator):
 
 
 class TaskContext:
-    """Handle given to a task function to create batched calculators."""
+    """Handle given to a task function to request batched evaluations."""
 
     def __init__(self, scheduler, model):
         self._scheduler = scheduler
@@ -110,6 +110,25 @@ class TaskContext:
         if model not in self._scheduler._backends:
             raise KeyError(f"Unknown model {model!r}.")
         return BatchCalculator(self._scheduler, model, properties)
+
+    def evaluate(self, structures, model=None, properties=_REQUIRED):
+        """Evaluate independent structures in one request and return the results.
+
+        Use this when a task needs many evaluations that do not depend on each
+        other, such as displaced supercells or trial configurations: they join
+        the same batched call instead of one call per round. Each result is a
+        dictionary with ``energy``, ``free_energy``, ``forces``, and any further
+        ``properties``.
+        """
+        model = self.model if model is None else model
+        if model not in self._scheduler._backends:
+            raise KeyError(f"Unknown model {model!r}.")
+        if not structures:
+            return []
+        requested = tuple(dict.fromkeys((*_REQUIRED, *properties)))
+        return self._scheduler._evaluate(
+            [(model, atoms, requested) for atoms in structures]
+        )
 
     def linked_calculators(self, structures, model=None, properties=_REQUIRED):
         """Attach one grouped calculator to each structure and return them."""
@@ -152,7 +171,14 @@ class Scheduler:
         self.batch_log = []
 
     def add_model(self, name, model, max_atoms=None):
-        """Register a backend, a Symmetrix calculator, or any ASE calculator."""
+        """Register a model under ``name``.
+
+        ``model`` is a :class:`~atombatch.Backend`, a Symmetrix calculator with
+        ``calculate_batch``, a TorchSim model, a function with the
+        :meth:`Backend.evaluate` signature, or any other ASE calculator, which
+        is evaluated one structure at a time. ``max_atoms`` bounds the atoms in
+        one batched call.
+        """
         self._backends[name] = as_backend(model, max_atoms=max_atoms)
 
     def submit(self, function, model, name=None):

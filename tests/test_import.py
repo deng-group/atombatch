@@ -1,5 +1,7 @@
+from importlib.metadata import version
+
 import atombatch
 
 
-def test_version():
-    assert atombatch.__version__ == "0.0.1"
+def test_version_matches_package_metadata():
+    assert atombatch.__version__ == version("atombatch")
