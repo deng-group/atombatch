@@ -50,7 +50,7 @@ MACE, fairchem, SevenNet, ORB, MatterSim, NequIP, Nequix, and metatomic models a
 pip install "atombatch[torchsim]" mace-torch
 ```
 
-Any other ASE calculator also works, evaluated one structure at a time. Further extras: `phonons` (phonopy and phono3py), `test`, and `docs`.
+Any other ASE calculator also works, evaluated one structure at a time. Further extras: `atomate2` (Python 3.11 or later), `phonons` (phonopy and phono3py), `test`, and `docs`.
 
 ## Quick start
 
@@ -111,6 +111,21 @@ from torch_sim.models.mace import MaceModel
 model = MaceModel(mace_mp(model="small", return_raw_model=True, default_dtype="float32"), device=torch.device("cuda"), dtype=torch.float32, compute_stress=True)
 scheduler.add_model("mace", model)
 ```
+
+### atomate2
+
+atomate2 force-field and ASE makers run batched without changes, and return atomate2's own documents:
+
+```python
+from atomate2.forcefields.jobs import ForceFieldRelaxMaker
+from atombatch.integrations.atomate2 import atomate2_task
+
+for structure in structures:
+    scheduler.submit(atomate2_task(ForceFieldRelaxMaker(relax_cell=True), structure), "mace")
+documents = [result.value for result in scheduler.run()]  # ForceFieldTaskDocuments
+```
+
+For 28 cell relaxations with Symmetrix on an M1 Max, the batched jobs ran 2.4 times faster than the same jobs one after another, with identical step counts. See the [atomate2 page](https://deng-group.github.io/atombatch/atomate2.html).
 
 ## Scope
 

@@ -53,3 +53,8 @@ Symmetrix graph batching
 
 .. automodule:: atombatch.backends.symmetrix
    :members: GraphBatcher, supports_graph_batching, edge_forces, segment_virials
+
+atomate2
+--------
+
+.. autofunction:: atombatch.integrations.atomate2.atomate2_task

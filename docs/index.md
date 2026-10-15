@@ -33,6 +33,7 @@ installation
 quickstart
 examples
 models
+atomate2
 workflows
 custom-tasks
 performance

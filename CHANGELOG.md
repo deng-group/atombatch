@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `atombatch.integrations.atomate2.atomate2_task` runs atomate2 makers that go through ASE (`ForceFieldRelaxMaker`, `ForceFieldStaticMaker`, `AseRelaxMaker` subclasses) with batched evaluations and returns their documents, equal to those of the sequential jobs. 28 Symmetrix cell relaxations ran 2.4 times faster than the same jobs one after another on an M1 Max. New `atomate2` extra.
 - The package is organized into `atombatch.backends` (base, Symmetrix, TorchSim) and `atombatch.workflows` (relax, NEB, MD, EOS, phonons, Monte Carlo). `from atombatch import ...` is unchanged, and `atombatch.tasks` and `atombatch.symmetrix` still re-export their 0.1.2 contents.
 - Examples for batched Symmetrix workflows (cell relaxations of all orderings, several NEB bands, MD at several temperatures, phonons, swap Monte Carlo) and a SLURM job template, in `examples/` and on the Examples page of the documentation.
 - `molecular_dynamics` passes the moving `Atoms` to observers as a positional argument; observers with a parameter not named `atoms` failed.

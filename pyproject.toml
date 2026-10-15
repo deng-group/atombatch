@@ -32,6 +32,7 @@ Issues = "https://github.com/deng-group/atombatch/issues"
 Changelog = "https://github.com/deng-group/atombatch/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
+atomate2 = ["atomate2; python_version >= '3.11'"]
 phonons = ["phonopy", "phono3py"]
 symmetrix = ["symmetrix-xl>=0.1.1", "matscipy", "numba"]
 torchsim = ["torch-sim-atomistic; python_version >= '3.12'"]

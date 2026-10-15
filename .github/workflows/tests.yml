@@ -19,6 +19,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
           activate-environment: true
       - run: uv pip install -e ".[test,phonons]" numba
+      - if: matrix.python-version != '3.10'
+        run: uv pip install atomate2
       - run: uvx ruff check src tests benchmarks examples
       - run: pytest -q
 
