@@ -2,7 +2,7 @@
 
 atombatch batches the energy and force evaluations of many independent ASE tasks into shared model calls. Relaxations, NEB bands, molecular dynamics, phonon displacements, and Monte Carlo trials run as ordinary ASE or phonopy code. Their pending requests are collected and evaluated together in one batched call per model, and each task receives exactly the result it would get from an independent run.
 
-A machine-learned interatomic potential evaluated on one small structure leaves a GPU mostly idle, because each call pays a fixed cost for kernel launches, synchronization, and host bookkeeping. Evaluating the requests of many tasks together amortizes that cost. With Symmetrix on an Apple M1 Max GPU, joining 64 SrTiO{sub}`3` cells of 40 atoms into one evaluation reduced the cost from 145 to 23 us/atom, and 64 FIRE relaxations ran three times faster than a sequential ASE loop ({doc}`performance`).
+A machine-learned interatomic potential evaluated on one small structure leaves a GPU mostly idle, because each call pays a fixed cost for kernel launches, synchronization, and host bookkeeping. Evaluating the requests of many tasks together amortizes that cost. With Symmetrix on an NVIDIA RTX 4090, joining 64 SrTiO{sub}`3` cells of 40 atoms into one evaluation reduced the cost from 62 to 4.3 us/atom (FP32), and 64 FIRE relaxations ran 4.2 times faster than a sequential ASE loop, with identical step counts; on an Apple M1 Max GPU they ran 4.8 times faster ({doc}`performance`).
 
 ```python
 from ase.build import bulk
