@@ -1,3 +1,4 @@
+import copy
 import sys
 
 import numpy as np
@@ -32,6 +33,14 @@ def _structures(count=4):
 
 
 def _sequential(maker, structure):
+    # The job as atomate2 runs it. Force-field makers wrap each run in a
+    # context that resets torch's default dtype and needs torch; it does not
+    # change the results, so it is skipped where torch is missing.
+    try:
+        import torch  # noqa: F401
+    except ImportError:
+        maker = copy.copy(maker)
+        maker._run_ase_safe = maker.run_ase
     return type(maker).make.original(maker, structure)
 
 
