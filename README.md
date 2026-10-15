@@ -99,6 +99,8 @@ scheduler.submit(equation_of_state(atoms), "mace")
 scheduler.submit(swap_monte_carlo(alloy, [300, 600, 1200], steps=1000), "mace")
 ```
 
+More complete scripts, for cell relaxations of all orderings, several NEB bands, MD at several temperatures, phonons, and swap Monte Carlo, are in [`examples/`](https://github.com/deng-group/atombatch/tree/main/examples), with a SLURM job template.
+
 With a TorchSim model, only the model changes:
 
 ```python

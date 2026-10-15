@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Examples for batched Symmetrix workflows (cell relaxations of all orderings, several NEB bands, MD at several temperatures, phonons, swap Monte Carlo) and a SLURM job template, in `examples/` and on the Examples page of the documentation.
+- `molecular_dynamics` passes the moving `Atoms` to observers as a positional argument; observers with a parameter not named `atoms` failed.
+
 ## 0.1.2 (2026-10-15)
 
 Faster batched relaxations, tested on CUDA. On an NVIDIA RTX 4090, 64 FIRE relaxations of 40-atom SrTiO3 cells with Symmetrix (FP32) run 4.2 times faster than a sequential ASE loop (1.5 times in 0.1.1), and 4.8 times on an Apple M1 Max, with identical step counts. Results remain identical to independent ASE runs.

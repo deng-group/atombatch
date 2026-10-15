@@ -31,6 +31,7 @@ atombatch is in early development. Correctness is tested against independent ASE
 
 installation
 quickstart
+examples
 models
 workflows
 custom-tasks

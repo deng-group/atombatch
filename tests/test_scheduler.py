@@ -287,3 +287,25 @@ def test_unknown_model_is_rejected():
     scheduler = _scheduler()
     with pytest.raises(KeyError, match="Unknown model"):
         scheduler.submit(single_point(_crystals(1)[0]), "missing")
+
+
+def test_molecular_dynamics_observers_receive_the_moving_atoms():
+    seen = []
+
+    def observer(moving):  # any parameter name
+        seen.append(moving.positions.copy())
+
+    scheduler = _scheduler()
+    scheduler.submit(
+        molecular_dynamics(
+            _thermalized(1), VelocityVerlet, 10, observers=[(observer, 5)], timestep=2.0
+        ),
+        "emt",
+    )
+
+    (result,) = scheduler.run()
+
+    assert result.ok, result.error
+    # ASE calls observers before the first step and then every 5 steps.
+    assert len(seen) == 3
+    np.testing.assert_array_equal(seen[-1], result.value["atoms"].positions)

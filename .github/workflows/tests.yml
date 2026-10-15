@@ -19,7 +19,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           activate-environment: true
       - run: uv pip install -e ".[test,phonons]" numba
-      - run: uvx ruff check src tests benchmarks
+      - run: uvx ruff check src tests benchmarks examples
       - run: pytest -q
 
   docs:
