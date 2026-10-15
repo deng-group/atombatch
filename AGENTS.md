@@ -28,7 +28,7 @@ Python 3.10 or later, with `numpy` and `ase>=3.23` as the only runtime dependenc
 
 ## Documentation
 
-Sphinx with the Furo theme and MyST Markdown, in `docs/` (`conf.py`, guide pages in Markdown, `api.rst` for autodoc). `docs/design.md` is part of the site. Build with `sphinx-build -W docs docs/_build/html`, which must pass without warnings. Code examples in `index.md`, `quickstart.md`, `workflows.md`, and `custom-tasks.md` use EMT so that they run without an MLIP. Run them after changing the API, and keep any printed output quoted in the pages in sync. Docstrings use Sphinx roles (`:class:`, `:meth:`) and double-backtick literals. The logo is `docs/_static/logo.svg`, a flat 3x3 grid of atoms in indigo tones with one amber atom.
+Sphinx with the Furo theme and MyST Markdown, in `docs/` (`conf.py`, guide pages in Markdown, `api.rst` for autodoc). `docs/design.md` is part of the site. Build with `sphinx-build -W docs docs/_build/html`, which must pass without warnings. `.github/workflows/docs.yml` publishes it to GitHub Pages (https://deng-group.github.io/atombatch/) on every push to `main`. Code examples in `index.md`, `quickstart.md`, `workflows.md`, and `custom-tasks.md` use EMT so that they run without an MLIP. Run them after changing the API, and keep any printed output quoted in the pages in sync. Docstrings use Sphinx roles (`:class:`, `:meth:`) and double-backtick literals. The logo is `docs/_static/logo.svg`, a flat 3x3 grid of atoms in indigo tones with one amber atom.
 
 ## Conventions
 

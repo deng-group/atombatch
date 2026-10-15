@@ -13,7 +13,7 @@ A machine-learned interatomic potential evaluated on one small structure leaves 
 | MACE-MP small via TorchSim (FP32) | NVIDIA RTX 4090 | 4.6x | 4.1x |
 | Symmetrix, MACE-OMat-0 medium (FP32) | Apple M1 Max | 6.3x | 4.8x |
 
-On a CPU the gain is small and depends on the batch size. See [performance](https://github.com/deng-group/atombatch/blob/main/docs/performance.md) for the full measurements.
+On a CPU the gain is small and depends on the batch size. See [performance](https://deng-group.github.io/atombatch/performance.html) for the full measurements.
 
 ## Installation
 
@@ -40,7 +40,7 @@ curl -L -o mace_agnesi_medium.model https://github.com/ACEsuit/mace-mp/releases/
 symmetrix_extract_mace --model mace_agnesi_medium.model --output mace-mp-0b-medium.json
 ```
 
-On machines where an old CUDA toolkit is on the library path, the Symmetrix CUDA wheels can load the wrong `libnvrtc.so` or `libcudart.so` and fail with `nvrtcGetCUBIN` or `invalid device ordinal`. The [installation guide](https://github.com/deng-group/atombatch/blob/main/docs/installation.md) gives the fix.
+On machines where an old CUDA toolkit is on the library path, the Symmetrix CUDA wheels can load the wrong `libnvrtc.so` or `libcudart.so` and fail with `nvrtcGetCUBIN` or `invalid device ordinal`. The [installation guide](https://deng-group.github.io/atombatch/installation.html) gives the fix.
 
 ### Other models
 
@@ -99,7 +99,7 @@ scheduler.submit(equation_of_state(atoms), "mace")
 scheduler.submit(swap_monte_carlo(alloy, [300, 600, 1200], steps=1000), "mace")
 ```
 
-More complete scripts, for cell relaxations of all orderings, several NEB bands, MD at several temperatures, phonons, and swap Monte Carlo, are in [`examples/`](https://github.com/deng-group/atombatch/tree/main/examples), with a SLURM job template.
+More complete scripts, for cell relaxations of all orderings, several NEB bands, MD at several temperatures, phonons, and swap Monte Carlo, are in [`examples/`](https://github.com/deng-group/atombatch/tree/main/examples) (described on the [Examples](https://deng-group.github.io/atombatch/examples.html) page), with a SLURM job template.
 
 With a TorchSim model, only the model changes:
 
@@ -133,7 +133,7 @@ scheduler.add_model("mace", model)
 
 ## Documentation
 
-The documentation in [`docs/`](https://github.com/deng-group/atombatch/blob/main/docs) covers installation, models, batched workflows, writing tasks, performance, and the API. Build it with:
+The documentation is at **https://deng-group.github.io/atombatch/**. It covers installation, examples, models, batched workflows, writing tasks, performance, and the API. To build it locally:
 
 ```bash
 pip install -e ".[docs]"

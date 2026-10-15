@@ -30,6 +30,7 @@ intersphinx_mapping = {
 
 html_theme = "furo"
 html_title = "atombatch"
+html_baseurl = "https://deng-group.github.io/atombatch/"
 html_logo = "_static/logo.svg"
 html_favicon = "_static/logo.svg"
 html_static_path = ["_static"]

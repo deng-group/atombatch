@@ -27,7 +27,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/deng-group/atombatch"
-Documentation = "https://github.com/deng-group/atombatch/tree/main/docs"
+Documentation = "https://deng-group.github.io/atombatch/"
 Issues = "https://github.com/deng-group/atombatch/issues"
 Changelog = "https://github.com/deng-group/atombatch/blob/main/CHANGELOG.md"
 
