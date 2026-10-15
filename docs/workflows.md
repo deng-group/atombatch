@@ -84,6 +84,37 @@ The result holds the final configuration and energy at each temperature, the low
 
 Positions stay on the input lattice, so energies are those of unrelaxed configurations. Sampling with relaxed energies would need one relaxation per trial and is not implemented. To screen many independent orderings, submit one Monte Carlo task per starting configuration or per composition. Their replicas then share each batched call.
 
+## Random structure searching: AIRSS and hot-AIRSS
+
+{func}`~atombatch.airss` runs one sample of ab initio random structure searching (AIRSS): it generates a random but sensible structure and relaxes positions and cell together at a given pressure. {func}`~atombatch.hot_airss` runs one sample of hot-AIRSS: random structure, relaxation, a short Langevin anneal at high temperature, and a second relaxation, which lets a structure leave a poor basin. Every sample is a task, so the samples of a search, in whatever stage they are, share each batched call, and finished samples are replaced from the queue.
+
+```python
+from ase.calculators.emt import EMT
+from atombatch import Scheduler, airss
+from atombatch.workflows.airss import random_structure, rank
+
+
+def generate(rng):
+    return random_structure("Cu4", volume_per_atom=12.0, minsep=2.0, rng=rng)
+
+
+scheduler = Scheduler()
+scheduler.add_model("emt", EMT())
+for index in range(24):
+    scheduler.submit(airss(generate, seed=index, pressure=0.0), "emt")
+ranked = rank([result.value for result in scheduler.run()])
+best = ranked[0]
+print(best["result"]["enthalpy_per_atom"], best["count"])
+```
+
+`generate(rng)` returns a random `Atoms`, with `rng` a NumPy generator seeded by `seed`. {func}`~atombatch.workflows.airss.random_structure` places atoms at random in a random cell of a target volume, at least `minsep` apart, without symmetry. {func}`~atombatch.workflows.airss.buildcell` runs the AIRSS `buildcell` program on a seed, given as the text of a `.cell` file or as an airsspy `SeedAtoms`, which supports symmetry, fragments, and the other buildcell constraints. AIRSS is distributed by its authors as source code, and `buildcell` builds with gfortran.
+
+Each result holds the relaxed and initial structures, energy, enthalpy `H = E + pV` (per cell and per atom), volume per atom, convergence, and the steps of every stage. {func}`~atombatch.workflows.airss.rank` sorts results by enthalpy per atom and merges duplicates by enthalpy and volume, optionally confirmed by a structure comparison such as pymatgen's `StructureMatcher`.
+
+`examples/airss_carbon.py` searches 8-atom carbon cells at 20 GPa with 48 AIRSS and 48 hot-AIRSS samples in one scheduler (2 minutes on an M1 Max with Symmetrix). Diamond is the lowest minimum, found three times, followed by lonsdaleite (25 meV/atom higher) and a graphite-like layered structure (202 meV/atom higher), in agreement with direct relaxations of diamond and graphite. In a buildcell seed, `VARVOL` is the target volume per atom, and `NFORM=1` keeps the number of atoms fixed; without it, buildcell picks a random number of formula units. Models without a dispersion correction do not bind layered or chain structures, which expand into separated fragments when searched at zero pressure.
+
+The tests check that both tasks reproduce the same steps carried out by hand, that the enthalpy includes the `pV` term, and that a search of four-atom copper cells with EMT finds fcc copper several times.
+
 ## Workflows that need no special support
 
 Some workflows are already sets of ordinary tasks:

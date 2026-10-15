@@ -37,6 +37,15 @@ Workflows
 .. autofunction:: atombatch.equation_of_state
 .. autofunction:: atombatch.swap_monte_carlo
 
+Random structure searching
+--------------------------
+
+.. autofunction:: atombatch.airss
+.. autofunction:: atombatch.hot_airss
+.. autofunction:: atombatch.workflows.airss.random_structure
+.. autofunction:: atombatch.workflows.airss.buildcell
+.. autofunction:: atombatch.workflows.airss.rank
+
 Backends
 --------
 

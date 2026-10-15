@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `airss` and `hot_airss` run random structure searches (AIRSS, and hot-AIRSS with a Langevin anneal between two relaxations), one task per sample, at a given pressure. Random structures come from the AIRSS `buildcell` program (`atombatch.workflows.airss.buildcell`, with a seed file or an airsspy `SeedAtoms`) or from a built-in generator without symmetry (`random_structure`); `rank` sorts and merges the minima. `parse_cell` reads buildcell output without ASE's CASTEP reader, which looks for a CASTEP installation on every call. `examples/airss_carbon.py` finds diamond, lonsdaleite, and graphite-like carbon at 20 GPa.
 - `atombatch.integrations.atomate2.atomate2_task` runs atomate2 makers that go through ASE (`ForceFieldRelaxMaker`, `ForceFieldStaticMaker`, `AseRelaxMaker` subclasses) with batched evaluations and returns their documents, equal to those of the sequential jobs. 28 Symmetrix cell relaxations ran 2.4 times faster than the same jobs one after another on an M1 Max. New `atomate2` extra.
 - The package is organized into `atombatch.backends` (base, Symmetrix, TorchSim) and `atombatch.workflows` (relax, NEB, MD, EOS, phonons, Monte Carlo). `from atombatch import ...` is unchanged, and `atombatch.tasks` and `atombatch.symmetrix` still re-export their 0.1.2 contents.
 - Examples for batched Symmetrix workflows (cell relaxations of all orderings, several NEB bands, MD at several temperatures, phonons, swap Monte Carlo) and a SLURM job template, in `examples/` and on the Examples page of the documentation.

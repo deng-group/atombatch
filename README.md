@@ -134,6 +134,7 @@ For 28 cell relaxations with Symmetrix on an M1 Max, the batched jobs ran 2.4 ti
   - `displacement_forces`: forces on all displaced supercells of a phonopy or phono3py object in one request.
   - `equation_of_state`: all scaled cells in one request, fitted with `ase.eos`.
   - `swap_monte_carlo`: Metropolis swaps of site occupancies with replica exchange, the trial configurations of all temperatures evaluated in one request per step.
+  - `airss` and `hot_airss`: random structure searching, one task per sample (random structure, relaxation, and for hot-AIRSS a high-temperature anneal and a second relaxation), with structures from the AIRSS `buildcell` program or a built-in generator.
   - Custom workflows call `context.evaluate(structures)` from any task function.
 - Scheduling: finished tasks are replaced from a queue (`max_active`) so that batches stay full, and calls are split at a per-model atom budget (`max_atoms`).
 - Models: several models in one run, batched per model. Symmetrix-XL from 0.1.1 is batched natively, TorchSim models in one model call, and user functions with the signature `evaluate(structures, properties)` connect any model with its own batched inference.

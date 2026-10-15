@@ -6,6 +6,7 @@ batched calculators. Structures are copied, so the caller's objects are
 unchanged.
 """
 
+from .airss import airss, hot_airss
 from .eos import equation_of_state
 from .md import molecular_dynamics
 from .monte_carlo import swap_monte_carlo
@@ -14,8 +15,10 @@ from .phonons import displacement_forces
 from .relax import relax, single_point
 
 __all__ = [
+    "airss",
     "displacement_forces",
     "equation_of_state",
+    "hot_airss",
     "molecular_dynamics",
     "neb",
     "relax",

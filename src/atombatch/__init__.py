@@ -9,8 +9,10 @@ from .backends import (
 )
 from .scheduler import BatchCalculator, Scheduler, TaskContext, TaskResult
 from .workflows import (
+    airss,
     displacement_forces,
     equation_of_state,
+    hot_airss,
     molecular_dynamics,
     neb,
     relax,
@@ -30,8 +32,10 @@ __all__ = [
     "TaskContext",
     "TaskResult",
     "TorchSimBackend",
+    "airss",
     "displacement_forces",
     "equation_of_state",
+    "hot_airss",
     "molecular_dynamics",
     "neb",
     "relax",
