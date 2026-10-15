@@ -189,3 +189,78 @@ def test_trajectory_edges_equal_the_calculator_bit_for_bit(
             atoms.positions += rng.normal(scale=0.15, size=atoms.positions.shape)
     assert reference.neighbor_cache_build_count > 1
     assert reference.neighbor_cache_reuse_count > 10
+
+
+def _equal(actual, expected):
+    np.testing.assert_array_equal(actual, expected)
+
+
+def _close(actual, expected):
+    np.testing.assert_allclose(actual, expected, rtol=0, atol=1e-12)
+
+
+def _reproducible(calculator, atoms):
+    """Return whether ``calculator`` repeats a calculation bit for bit."""
+    forces = []
+    for _ in range(3):
+        image = atoms.copy()
+        image.calc = calculator
+        calculator.reset()
+        forces.append(image.get_forces())
+    calculator.reset()
+    return all(np.array_equal(forces[0], other) for other in forces[1:])
+
+
+def test_prepared_path_equals_the_calculator_across_alternating_trajectories():
+    # Large structures use Symmetrix's own prepared-geometry path with the
+    # neighbor cache of their trajectory; with two trajectories in every call,
+    # each must still equal a calculator that follows only that trajectory.
+    if not MODEL:
+        pytest.skip("set ATOMBATCH_SYMMETRIX_MODEL to a Symmetrix JSON model")
+    symmetrix = pytest.importorskip("symmetrix")
+    backend = SymmetrixBackend(
+        symmetrix.Symmetrix(MODEL, dtype="float64"), native_atoms=1
+    )
+    references = [symmetrix.Symmetrix(MODEL, dtype="float64") for _ in range(2)]
+    trajectories = [_perovskite(0), _perovskite(1)]
+    # Bit for bit where Symmetrix itself is reproducible (CPU builds); CUDA
+    # reductions vary at rounding level from run to run.
+    probe = symmetrix.Symmetrix(MODEL, dtype="float64")
+    same = _equal if _reproducible(probe, _perovskite(5)) else _close
+    rng = np.random.default_rng(2)
+    for _ in range(12):
+        snapshots = []
+        for index, atoms in enumerate(trajectories):
+            snapshot = atoms.copy()
+            snapshot.info[SOURCE_KEY] = index
+            snapshots.append(snapshot)
+        results = backend.evaluate(snapshots, ("energy", "forces", "stress"))
+        for atoms, result, reference in zip(trajectories, results, references):
+            atoms.calc = reference
+            same(result["energy"], atoms.get_potential_energy())
+            same(result["forces"], atoms.get_forces())
+            same(result["stress"], atoms.get_stress())
+            atoms.calc = None
+            # Mostly small moves (cache reused), sometimes large (rebuilt).
+            scale = 0.15 if rng.random() < 0.2 else 0.01
+            atoms.positions += rng.normal(scale=scale, size=atoms.positions.shape)
+
+
+def test_mixed_sizes_return_results_in_order(symmetrix_calculator):
+    backend = SymmetrixBackend(symmetrix_calculator, native_atoms=100)
+    small = _perovskite(0)
+    large = _perovskite(1).repeat((2, 1, 1))  # 80 atoms
+    large = large.repeat((2, 1, 1))  # 160 atoms, above the threshold
+    structures = [small, large, _perovskite(2)]
+
+    results = backend.evaluate(structures, ("energy", "forces", "stress"))
+
+    for atoms, result in zip(structures, results):
+        reference = atoms.copy()
+        reference.calc = symmetrix_calculator
+        assert result["forces"].shape == (len(atoms), 3)
+        np.testing.assert_allclose(
+            result["energy"], reference.get_potential_energy(), atol=1e-8
+        )
+        np.testing.assert_allclose(result["forces"], reference.get_forces(), atol=1e-8)
+        np.testing.assert_allclose(result["stress"], reference.get_stress(), atol=1e-10)

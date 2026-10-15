@@ -29,20 +29,30 @@ class SymmetrixBackend(Backend):
     atombatch joins the structures into one disconnected neighbor graph and
     calls the Symmetrix evaluator directly (:mod:`atombatch.symmetrix`), with
     one Symmetrix neighbor cache per trajectory so that neighbor lists are
-    rebuilt only when atoms move beyond the neighbor skin. This works from
+    rebuilt only when atoms move beyond the neighbor skin. Structures with at
+    least ``native_atoms`` atoms gain little from joining and are instead
+    evaluated one at a time on Symmetrix's own prepared-geometry path, which
+    keeps the neighbor graph on the device and reduces forces and stress
+    there; their results equal the Symmetrix calculator's. This works from
     Symmetrix-XL 0.1.1; ``Symmetrix.calculate_batch`` is used only for
     calculators without the evaluator interface. Models with dispersion
     corrections or electric-field coupling fall back to one ASE evaluation
     per structure.
     """
 
-    def __init__(self, calculator, max_atoms=None, batch_mode="native"):
+    def __init__(
+        self,
+        calculator,
+        max_atoms=None,
+        batch_mode="native",
+        native_atoms=None,
+    ):
         self.calculator = calculator
         self.max_atoms = max_atoms
         self.batch_mode = batch_mode
         self._graph = None
         if supports_graph_batching(calculator):
-            self._graph = GraphBatcher(calculator)
+            self._graph = GraphBatcher(calculator, native_atoms=native_atoms)
         elif not callable(getattr(calculator, "calculate_batch", None)):
             raise TypeError(
                 "SymmetrixBackend requires a Symmetrix calculator "
@@ -55,6 +65,16 @@ class SymmetrixBackend(Backend):
         return self.calculator.calculate_batch(
             structures, properties=tuple(properties), batch_mode=self.batch_mode
         )
+
+
+# Structures at least this large are evaluated one at a time on the prepared-
+# geometry path; below it they are joined into one graph. See
+# docs/performance.md for the measurement behind the value.
+NATIVE_ATOMS = 1000
+
+
+def _evaluation_properties(properties):
+    return ["energy", "forces"] + (["stress"] if "stress" in properties else [])
 
 
 def supports_graph_batching(calculator):
@@ -72,8 +92,15 @@ class GraphBatcher:
     lattice, share a neighbor list.
     """
 
-    def __init__(self, calculator, neighbor_cache_size=64, trajectory_cache_size=1024):
+    def __init__(
+        self,
+        calculator,
+        neighbor_cache_size=64,
+        trajectory_cache_size=1024,
+        native_atoms=None,
+    ):
         self.calculator = calculator
+        self.native_atoms = NATIVE_ATOMS if native_atoms is None else native_atoms
         self.neighbor_cache_size = int(neighbor_cache_size)
         self._neighbor_cache = OrderedDict()
         self.trajectory_cache_size = int(trajectory_cache_size)
@@ -94,9 +121,74 @@ class GraphBatcher:
 
     def evaluate(self, structures, properties):
         structures = list(structures)
-        compute_stress = "stress" in properties
         if self.unsupported:
             return self._sequential(structures, properties)
+        native = self._native_capable(properties)
+        large = [
+            index
+            for index, atoms in enumerate(structures)
+            if native and len(atoms) >= self.native_atoms
+        ]
+        if not large:
+            return self._joined(structures, properties)
+        results = [None] * len(structures)
+        small = [index for index in range(len(structures)) if index not in set(large)]
+        if small:
+            joined = self._joined([structures[i] for i in small], properties)
+            for index, result in zip(small, joined):
+                results[index] = result
+        for index in large:
+            results[index] = self._prepared(structures[index], properties)
+        return results
+
+    def _native_capable(self, properties):
+        calculator = self.calculator
+        check = getattr(calculator, "_can_use_native_geometry", None)
+        return all(
+            callable(getattr(calculator, name, None))
+            for name in ("_mace_inputs", "_collect_mace_results")
+        ) and (callable(check) and check(_evaluation_properties(properties)))
+
+    def _prepared(self, atoms, properties):
+        """Evaluate one structure on Symmetrix's prepared-geometry path.
+
+        This is the sequence of ``Symmetrix.calculate`` with the neighbor
+        cache of the structure's trajectory. The neighbor graph is built on the
+        host (``allow_device_neighbor_graph=False``): a device-resident graph
+        is identified inside the evaluator, so it could not be exchanged
+        between trajectories.
+        """
+        calculator = self.calculator
+        source = atoms.info.get(SOURCE_KEY)
+        saved = getattr(calculator, "_neighbor_cache", None)
+        calculator._neighbor_cache = (
+            None if source is None else self._trajectory_caches.pop(source, None)
+        )
+        evaluation = _evaluation_properties(properties)
+        try:
+            inputs = calculator._mace_inputs(
+                atoms, native_geometry=True, allow_device_neighbor_graph=False
+            )
+            tuning = getattr(calculator, "_apply_kernel_launch_tuning", None)
+            if callable(tuning):
+                tuning(inputs[0], len(inputs[3]), evaluation)
+            generation = calculator._compute_mace(inputs, atoms=atoms)
+            result = calculator._collect_mace_results(
+                atoms, inputs, evaluation, generation
+            )
+            if source is not None:
+                self._trajectory_caches[source] = calculator._neighbor_cache
+        finally:
+            calculator._neighbor_cache = saved
+        while len(self._trajectory_caches) > self.trajectory_cache_size:
+            self._trajectory_caches.popitem(last=False)
+        return {
+            key: np.array(value, copy=True) if isinstance(value, np.ndarray) else value
+            for key, value in result.items()
+        }
+
+    def _joined(self, structures, properties):
+        compute_stress = "stress" in properties
         if compute_stress:
             volumes = np.array([abs(atoms.cell.volume) for atoms in structures])
             if not np.all(volumes > 0.0):

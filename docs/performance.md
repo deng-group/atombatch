@@ -55,6 +55,22 @@ Three conclusions follow from these numbers.
 - The time outside the model call is now 0.1 to 0.25 ms per evaluation, 6 to 22 % of the GPU runs. Most of it is ASE's own per-step work (see below), and on fast GPUs it still sets the limit for small cells.
 - On the CPU, the gain depends on the model and on the batch size. The single-core Symmetrix build is compute-bound and gains nothing. MACE through TorchSim with 8 threads gained about 1.6 times at 16 to 32 structures per call and lost at 64 and above, so `max_active=16` gave a 1.8x speedup where `max_active=64` gave a slowdown. On a CPU, measure before choosing `max_active`.
 
+### Large structures with Symmetrix
+
+Joining structures into one graph pays off for small cells, but for large ones the host-side work of the joined graph grows with the number of edges: the edge vectors are built on the host and uploaded, and the stresses are reduced on the host from the per-edge forces, which Symmetrix-XL 0.1.1 has to copy back from the device. Symmetrix's own calculator instead keeps the neighbor graph on the device and uploads only the positions. Structures with at least 1000 atoms (`native_atoms` of {class}`~atombatch.SymmetrixBackend`) are therefore evaluated one at a time on Symmetrix's prepared-geometry path, with the neighbor cache of their trajectory, and their results equal the Symmetrix calculator's bit for bit.
+
+The threshold comes from evaluating Si supercells with energy, forces, and stress on an RTX 4090 (FP32, with small moves between calls as in a relaxation; the GPU was shared with another job, so the ratios are the reliable part):
+
+| Atoms per structure | Structures | Joined graph | One prepared call each |
+| --- | --- | --- | --- |
+| 64 | 32 | 35 ms | 284 ms |
+| 512 | 16 | 114 ms | 165 ms |
+| 1000 | 8 | 108 ms | 111 ms |
+| 1728 | 8 | 196 ms | 147 ms |
+| 10648 | 3 | 485 ms | 182 ms |
+
+For one MD trajectory of 10,648 Si atoms (issue #1), atombatch took 3.6 times as long per step as the Symmetrix calculator before this change and 1.27 times after it, under the same GPU load. Per call it matches the Symmetrix calculator with a host-built neighbor graph (52.8 against 52.6 ms); the calculator alone builds the graph on the device for large structures (47.4 ms), which atombatch does not use because a device-resident graph is identified inside the evaluator and cannot be exchanged between trajectories.
+
 ## What a round costs
 
 The scheduler evaluates once every running task is either waiting on a request or finished. A round therefore costs the batched model calls plus the Python step logic of all running tasks (optimizer updates, NEB tangents, integrator steps). That step logic runs under the GIL, one task after another. The model call usually dominates.
