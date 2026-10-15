@@ -25,7 +25,13 @@ Optional extras add the packages for batched models and workflows:
 | `test` | `pytest` | the test suite |
 | `docs` | `sphinx`, `furo`, `myst-parser` | building this documentation |
 
-For example, `pip install "atombatch[torchsim,phonons]"`. Symmetrix-XL 0.1.1 on PyPI has Linux wheels only. On macOS, install the `metal-preview-1` wheels from GitHub or build Symmetrix-XL from source, then install atombatch without the `symmetrix` extra and add `matscipy` and `numba`. A TorchSim model also needs its model package, such as `mace-torch` for MACE.
+For example, `pip install "atombatch[torchsim,phonons]"`. Symmetrix-XL 0.1.1 on PyPI has Linux wheels only. The Apple GPU (Metal) backend is in the Symmetrix-XL main branch but not yet in a PyPI release. On Apple silicon, build it from source, which takes a few minutes and needs the Xcode command line tools, or install the prebuilt wheels of the `metal-preview-1` release on GitHub:
+
+```bash
+pip install atombatch matscipy numba "symmetrix-xl @ git+https://github.com/bonan-group/symmetrix-xl.git@main#subdirectory=symmetrix"
+```
+
+With atombatch 0.1.2 and Symmetrix built from main on an M1 Max, 64 FIRE relaxations of 40-atom SrTiO{sub}`3` cells ran 4.7 times faster than a sequential loop, with identical step counts. A TorchSim model also needs its model package, such as `mace-torch` for MACE.
 
 ## Symmetrix on NVIDIA GPUs
 
