@@ -8,10 +8,9 @@ from typing import Any
 
 from ase.calculators.calculator import Calculator, all_changes, equal
 
-from .backends import as_backend
+from .backends import SOURCE_KEY, as_backend
 
 _REQUIRED = ("energy", "forces")
-SOURCE_KEY = "atombatch_source"
 
 
 @dataclass

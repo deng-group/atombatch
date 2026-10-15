@@ -8,7 +8,7 @@ from .backends import (
     TorchSimBackend,
 )
 from .scheduler import BatchCalculator, Scheduler, TaskContext, TaskResult
-from .tasks import (
+from .workflows import (
     displacement_forces,
     equation_of_state,
     molecular_dynamics,

@@ -51,5 +51,5 @@ Backends
 Symmetrix graph batching
 ------------------------
 
-.. automodule:: atombatch.symmetrix
+.. automodule:: atombatch.backends.symmetrix
    :members: GraphBatcher, supports_graph_batching, edge_forces, segment_virials

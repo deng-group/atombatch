@@ -7,7 +7,7 @@ from ase.optimize import FIRE
 from ase.stress import full_3x3_to_voigt_6_stress
 
 from atombatch import Scheduler, SymmetrixBackend, relax, single_point
-from atombatch.symmetrix import (
+from atombatch.backends.symmetrix import (
     SOURCE_KEY,
     GraphBatcher,
     edge_forces,
@@ -163,7 +163,7 @@ def test_trajectory_edges_equal_the_calculator_bit_for_bit(
     # Reused, rebuilt, and cell-reset caches all give the calculator's edges.
     from symmetrix import Symmetrix
 
-    from atombatch import _edges
+    from atombatch.backends import _edges
 
     if not compiled:
         monkeypatch.setattr(_edges, "numba", None)

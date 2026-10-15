@@ -466,7 +466,7 @@ class _Calculator:
 def test_graph_batcher_warns_about_the_ase_neighbor_list(fake_symmetrix):
     from ase.neighborlist import neighbor_list
 
-    from atombatch.symmetrix import GraphBatcher
+    from atombatch.backends.symmetrix import GraphBatcher
 
     fake_symmetrix(neighbor_list)
     with pytest.warns(UserWarning, match="matscipy"):
@@ -476,7 +476,7 @@ def test_graph_batcher_warns_about_the_ase_neighbor_list(fake_symmetrix):
 def test_graph_batcher_is_silent_with_a_compiled_neighbor_list(fake_symmetrix):
     import warnings
 
-    from atombatch.symmetrix import GraphBatcher
+    from atombatch.backends.symmetrix import GraphBatcher
 
     def neighbor_list(quantities, atoms, cutoff):
         return ()
@@ -549,7 +549,7 @@ def _random_edges(seed, count=5000, atoms=40):
 
 @pytest.mark.parametrize("clamp", [False, True])
 def test_compiled_edge_geometry_matches_numpy_bit_for_bit(clamp):
-    from atombatch import _edges
+    from atombatch.backends import _edges
 
     if _edges.numba is None:
         pytest.skip("numba is not installed")
@@ -563,7 +563,7 @@ def test_compiled_edge_geometry_matches_numpy_bit_for_bit(clamp):
 
 
 def test_edge_geometry_falls_back_to_numpy(monkeypatch):
-    from atombatch import _edges
+    from atombatch.backends import _edges
 
     monkeypatch.setattr(_edges, "numba", None)
     arguments = (*_random_edges(0), 5.0, False)
@@ -577,7 +577,7 @@ def test_edge_geometry_falls_back_to_numpy(monkeypatch):
 def test_neighbor_list_check_handles_symmetrix_wrappers(fake_symmetrix, matscipy):
     # Symmetrix versions with their own neighbor_list wrapper report matscipy
     # through _matscipy_neighbor_list.
-    from atombatch.symmetrix import uses_ase_neighbor_list
+    from atombatch.backends.symmetrix import uses_ase_neighbor_list
 
     def neighbor_list(quantities, atoms, cutoff):
         return ()

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The package is organized into `atombatch.backends` (base, Symmetrix, TorchSim) and `atombatch.workflows` (relax, NEB, MD, EOS, phonons, Monte Carlo). `from atombatch import ...` is unchanged, and `atombatch.tasks` and `atombatch.symmetrix` still re-export their 0.1.2 contents.
 - Examples for batched Symmetrix workflows (cell relaxations of all orderings, several NEB bands, MD at several temperatures, phonons, swap Monte Carlo) and a SLURM job template, in `examples/` and on the Examples page of the documentation.
 - `molecular_dynamics` passes the moving `Atoms` to observers as a positional argument; observers with a parameter not named `atoms` failed.
 
@@ -11,7 +12,7 @@ Faster batched relaxations, tested on CUDA. On an NVIDIA RTX 4090, 64 FIRE relax
 
 - `BatchCalculator.check_state` compares arrays for exact equality before ASE's `np.allclose` tolerance, with the same result as ASE. ASE calls it about four times per optimizer step; overhead per evaluation fell from about 260 to 100 us.
 - Batched Symmetrix evaluation keeps one Symmetrix neighbor cache per trajectory, so neighbor lists are rebuilt only when atoms move beyond the neighbor skin, as in the Symmetrix ASE calculator. Requests carry the identity of their calculator in `Atoms.info["atombatch_source"]`. The graph path is used even when `calculate_batch` is available.
-- Cached neighbor edges are updated by one loop compiled with Numba (`atombatch._edges`), identical bit for bit to Symmetrix's own (74 instead of 200 us per structure). The `symmetrix` extra installs Numba; without it, a NumPy version with the same results is used.
+- Cached neighbor edges are updated by one loop compiled with Numba (`atombatch.backends._edges`), identical bit for bit to Symmetrix's own (74 instead of 200 us per structure). The `symmetrix` extra installs Numba; without it, a NumPy version with the same results is used.
 - The batched graph is passed to Symmetrix as `int32` arrays instead of Python lists, which were converted element by element.
 - The check for Symmetrix's slow ASE neighbor-list fallback also works with the neighbor-list wrapper of symmetrix-xl PR #2.
 - Tested on an RTX 4090 with the Symmetrix-XL 0.1.1 CUDA wheel and with MACE through TorchSim. The installation guide documents two CUDA environment problems found there: the Symmetrix CUDA wheels loading an older `libnvrtc.so` or `libcudart.so`, and Triton needing Python development headers.
