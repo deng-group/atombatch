@@ -44,6 +44,12 @@ def atomate2_task(maker, structure, model=None):
         job_maker = copy.copy(maker)
         job_maker._calculator = context.calculator(model, properties=properties)
         job_maker.run_ase = _quiet(job_maker)
+        if hasattr(job_maker, "_run_ase_safe"):
+            # Force-field makers wrap run_ase in revert_default_dtype, which
+            # imports torch to undo the default-dtype change of MACE
+            # calculators. The batched calculator builds no torch model, and
+            # torch need not be installed (for example with Symmetrix).
+            job_maker._run_ase_safe = job_maker.run_ase
         return make(job_maker, structure)
 
     return task

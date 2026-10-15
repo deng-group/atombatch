@@ -37,6 +37,9 @@ The tests run `AseRelaxMaker` and `ForceFieldRelaxMaker` jobs (with and without 
 
 `examples/atomate2_relax.py` relaxes the 28 Ba orderings of a 2x2x2 SrTiO{sub}`3` supercell with a Symmetrix `ForceFieldRelaxMaker`. On an Apple M1 Max GPU, the jobs took 24.7 s one after another and 10.1 s batched (2.4 times faster), with the same number of steps and energies equal to 2e-5 eV (FP32 rounding). atomate2's own work per step (trajectory recording, documents) adds to the batched run, which takes about twice as long as the same relaxations with {func}`~atombatch.relax`.
 
-## Thread safety
+## Differences from running the job alone
+
+atomate2's force-field makers wrap each run in `revert_default_dtype`, which imports torch to undo the default-dtype change of MACE calculators. Inside atombatch the job builds no model, so this wrapper is skipped, and force-field makers run without torch installed (for example with Symmetrix only).
+
 
 atomate2 silences the optimizer log by redirecting `sys.stdout`, which is shared by all threads. Concurrent relaxations would restore each other's buffers and leave `sys.stdout` redirected after the run. During the relaxation, atombatch therefore sends the optimizer log to no file and lets atomate2 redirect stdout to itself; the documents record the maker's own `relax_kwargs`.

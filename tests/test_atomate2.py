@@ -121,3 +121,14 @@ def test_concurrent_jobs_leave_stdout_intact():
         _, documents = _run_batched(maker, _structures(6))
         assert sys.stdout is stdout
     assert documents[0].input.relax_kwargs == {"fmax": 0.02}
+
+
+def test_force_field_makers_do_not_need_torch(monkeypatch):
+    # Symmetrix environments may not have torch, which atomate2's force-field
+    # makers import only to reset torch's default dtype.
+    monkeypatch.setitem(sys.modules, "torch", None)
+    maker = EmtForceFieldRelaxMaker(relax_cell=True, relax_kwargs={"fmax": 0.02})
+
+    _, documents = _run_batched(maker, _structures(2))
+
+    assert len(documents) == 2
