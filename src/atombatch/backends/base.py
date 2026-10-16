@@ -10,6 +10,27 @@ from ase.calculators.calculator import all_changes
 SOURCE_KEY = "atombatch_source"
 
 
+class Source:
+    """Identity of one trajectory, stored in ``Atoms.info[SOURCE_KEY]``.
+
+    Copies of the ``Atoms`` (which deep-copy ``info``) share the same object,
+    and it lives as long as the calculator that made the requests, so a
+    backend can release per-trajectory state when it is garbage-collected
+    (``weakref.finalize``).
+    """
+
+    __slots__ = ("__weakref__",)
+
+    def __copy__(self):
+        return self
+
+    def __deepcopy__(self, memo):
+        return self
+
+    def __repr__(self):
+        return f"Source({id(self):#x})"
+
+
 class Backend:
     """Evaluate a list of ASE structures with one model.
 

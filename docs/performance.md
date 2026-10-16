@@ -69,7 +69,17 @@ The threshold comes from evaluating Si supercells with energy, forces, and stres
 | 1728 | 8 | 196 ms | 147 ms |
 | 10648 | 3 | 485 ms | 182 ms |
 
-For one MD trajectory of 10,648 Si atoms (issue #1), atombatch took 3.6 times as long per step as the Symmetrix calculator before this change and 1.27 times after it, under the same GPU load. Per call it matches the Symmetrix calculator with a host-built neighbor graph (52.8 against 52.6 ms); the calculator alone builds the graph on the device for large structures (47.4 ms), which atombatch does not use because a device-resident graph is identified inside the evaluator and cannot be exchanged between trajectories.
+Structures sharing the calculator must use host-built neighbor graphs: a device-resident graph is identified inside the evaluator and cannot be exchanged between trajectories. For large structures the Symmetrix calculator alone builds the graph on the device, which is about 10 % faster (47.4 against 52.6 ms per call for 10,648 Si atoms). {meth}`SymmetrixBackend.from_model <atombatch.SymmetrixBackend.from_model>` therefore creates, besides the shared calculator, up to `max_calculators` (4) calculators of their own for trajectories of large structures, which then run exactly as with the Symmetrix calculator alone. A calculator returns to a pool when its task finishes and is reused by the next trajectory; trajectories beyond the limit share the main calculator. Each costs one model load (7 s for the 292 MB MACE-MP-0b medium export) and its own device memory (about 0.8 GB for 10,648 atoms).
+
+Issue #1 measured one MD trajectory with energy, forces, and stress at every step, and three large structures per call. On an idle RTX 4090 (FP32), relative to the Symmetrix calculator alone:
+
+| Case | atombatch 0.1.2 | Shared calculator | `from_model` |
+| --- | --- | --- | --- |
+| One MD task, 1000 Si atoms | 2.4x | 1.07x | 0.94x |
+| One MD task, 10,648 Si atoms | 4.2x | 1.13x | 0.99x |
+| 3 x 10,648 atoms in one call, against one after another | 3.6x | 1.14x | 0.99x |
+
+For large structures in long runs, create the backend with `SymmetrixBackend.from_model(model_file, dtype="float32")` instead of passing a calculator.
 
 ## What a round costs
 

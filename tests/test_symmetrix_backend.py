@@ -153,7 +153,10 @@ def test_trajectory_neighbor_cache_matches_the_calculator(symmetrix_calculator):
         atoms.positions += rng.normal(scale=0.06, size=atoms.positions.shape)
     reused = reference.neighbor_cache_reuse_count - rebuilds
     assert 0 < reused < 6
-    assert symmetrix_calculator._neighbor_cache is not batcher._trajectory_caches[7]
+    assert (
+        symmetrix_calculator._neighbor_cache
+        is not batcher._trajectory_caches[batcher._key(7)]
+    )
 
 
 @pytest.mark.parametrize("compiled", [True, False])
@@ -264,3 +267,82 @@ def test_mixed_sizes_return_results_in_order(symmetrix_calculator):
         )
         np.testing.assert_allclose(result["forces"], reference.get_forces(), atol=1e-8)
         np.testing.assert_allclose(result["stress"], reference.get_stress(), atol=1e-10)
+
+
+def test_dedicated_calculators_follow_their_trajectories_and_are_reused():
+    # With a calculator factory, each large trajectory runs on a calculator of
+    # its own, exactly as the Symmetrix calculator alone; a finished
+    # trajectory returns its calculator to the pool, and trajectories beyond
+    # the limit share the main calculator.
+    if not MODEL:
+        pytest.skip("set ATOMBATCH_SYMMETRIX_MODEL to a Symmetrix JSON model")
+    pytest.importorskip("symmetrix")
+    import gc
+
+    from atombatch.backends import Source
+
+    backend = SymmetrixBackend.from_model(
+        MODEL, dtype="float64", native_atoms=1, max_calculators=2
+    )
+    graph = backend._graph
+    created = []
+    factory = graph.calculator_factory
+
+    def counting_factory():
+        created.append(factory())
+        return created[-1]
+
+    graph.calculator_factory = counting_factory
+    sources = [Source(), Source(), Source()]
+    structures = [_perovskite(index) for index in range(3)]
+    for atoms, source in zip(structures, sources):
+        atoms.info[SOURCE_KEY] = source
+
+    results = backend.evaluate(structures, ("energy", "forces", "stress"))
+
+    assert len(created) == 2  # the third trajectory shares the main calculator
+    same = _equal if _reproducible(factory(), _perovskite(5)) else _close
+    for atoms, result in zip(structures, results):
+        reference = atoms.copy()
+        reference.info.clear()
+        reference.calc = factory()
+        same(result["forces"], reference.get_forces())
+        same(result["stress"], reference.get_stress())
+
+    # The first trajectory ends: its calculator becomes idle and is reused.
+    del sources[0], structures[0]
+    gc.collect()
+    assert len(graph._idle) == 1
+    newcomer = _perovskite(4)
+    newcomer.info[SOURCE_KEY] = Source()
+    backend.evaluate([newcomer], ("energy", "forces"))
+    assert len(created) == 2
+    assert not graph._idle
+
+
+def test_finished_tasks_hand_their_calculator_to_the_next(symmetrix_calculator):
+    # One dedicated calculator serves tasks that run one after another: each
+    # task releases it when it finishes, although its result keeps the atoms
+    # and their batched calculator.
+    backend = SymmetrixBackend.from_model(
+        MODEL, dtype="float64", native_atoms=1, max_calculators=1
+    )
+    graph = backend._graph
+    shared = []
+    original = graph._prepared
+
+    def recording(atoms, properties):
+        shared.append(len(atoms))
+        return original(atoms, properties)
+
+    graph._prepared = recording
+    scheduler = Scheduler(max_active=1)
+    scheduler.add_model("sx", backend)
+    for seed in range(3):
+        scheduler.submit(relax(_perovskite(seed), fmax=0.1, steps=5), "sx")
+
+    results = scheduler.run()
+
+    assert all(result.ok for result in results)
+    assert shared == []  # every evaluation used the dedicated calculator
+    assert len(graph._dedicated) + len(graph._idle) == 1

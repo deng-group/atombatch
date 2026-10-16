@@ -8,7 +8,7 @@ from typing import Any
 
 from ase.calculators.calculator import Calculator, all_changes, equal
 
-from .backends import SOURCE_KEY, as_backend
+from .backends import SOURCE_KEY, Source, as_backend
 
 _REQUIRED = ("energy", "forces")
 
@@ -70,6 +70,7 @@ class BatchCalculator(Calculator):
         self._model = model
         self._properties = tuple(dict.fromkeys((*_REQUIRED, *properties)))
         self._group = None
+        self._source = Source()
 
     def check_state(self, atoms, tol=1e-15):
         """Return the system changes since the last evaluation.
@@ -114,7 +115,7 @@ class BatchCalculator(Calculator):
                 members.append((calculator, other))
         results = self._scheduler._evaluate(
             [(calculator._model, other, requested) for calculator, other in members],
-            sources=[id(calculator) for calculator, _ in members],
+            sources=[calculator._source for calculator, _ in members],
         )
         for (calculator, other), result in zip(members, results):
             if calculator is not self:
@@ -128,6 +129,7 @@ class TaskContext:
     def __init__(self, scheduler, model):
         self._scheduler = scheduler
         self.model = model
+        self._calculators = []
 
     def calculator(self, model=None, properties=_REQUIRED):
         """Return a new batched calculator for ``model`` (default: the task's).
@@ -139,7 +141,9 @@ class TaskContext:
         model = self.model if model is None else model
         if model not in self._scheduler._backends:
             raise KeyError(f"Unknown model {model!r}.")
-        return BatchCalculator(self._scheduler, model, properties)
+        calculator = BatchCalculator(self._scheduler, model, properties)
+        self._calculators.append(calculator)
+        return calculator
 
     def evaluate(self, structures, model=None, properties=_REQUIRED):
         """Evaluate independent structures in one request and return the results.
@@ -250,11 +254,18 @@ class Scheduler:
     def _run_task(self, task):
         result = TaskResult(task.name)
         task.result = result
+        context = TaskContext(self, task.model)
         try:
-            result.value = task.function(TaskContext(self, task.model))
+            result.value = task.function(context)
         except Exception as error:  # noqa: BLE001 (reported in the task result)
             result.error = error
         finally:
+            # The task's trajectories have ended. Results may still hold its
+            # calculators, so drop their Source objects, which lets backends
+            # release per-trajectory state now rather than when the results
+            # are discarded.
+            for calculator in context._calculators:
+                calculator._source = None
             with self._condition:
                 self._active.discard(task.name)
                 self._condition.notify_all()

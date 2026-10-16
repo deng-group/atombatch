@@ -21,6 +21,14 @@ calculator = Symmetrix("model.json", dtype="float64")
 scheduler.add_model("omat", calculator, max_atoms=50_000)
 ```
 
+For runs with large structures (1000 atoms or more), create the backend from the model file, so that each large trajectory can get a Symmetrix calculator of its own (see {doc}`performance`):
+
+```python
+from atombatch import SymmetrixBackend
+
+scheduler.add_model("omat", SymmetrixBackend.from_model("model.json", dtype="float32"))
+```
+
 Any Symmetrix-XL release from 0.1.1 is batched. Releases that provide `Symmetrix.calculate_batch` evaluate the batch themselves. For 0.1.1, atombatch joins the structures into one disconnected neighbor graph and calls the Symmetrix evaluator directly. Both paths agree with the Symmetrix ASE calculator to rounding (energies and forces to 1e-9, stresses to 1e-10) and run at the same speed. Models with dispersion corrections or electric-field coupling are evaluated one structure at a time. Symmetrix-XL 0.1.1 on PyPI publishes Linux wheels. The Apple GPU backend (`metal=True`) is available from the `metal-preview-1` macOS wheels on GitHub and from source builds of the Symmetrix-XL main branch. Both are batched through atombatch's graph path.
 
 Install matscipy with Symmetrix (the `symmetrix` extra does). Without it, Symmetrix falls back to ASE's Python neighbor list, and atombatch warns: the batched path rebuilds a neighbor list for every structure in every round, which then dominates the run time. With the `metal-preview-1` wheel on an M1 Max, 64 FIRE relaxations of 40-atom SrTiO{sub}`3` cells took 54 s batched against 18 s sequential without matscipy, and 10.6 s against 20.9 s with it, with identical step counts.

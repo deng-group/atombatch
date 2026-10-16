@@ -13,6 +13,7 @@ present since Symmetrix-XL 0.1.1.
 
 import hashlib
 import warnings
+import weakref
 from collections import OrderedDict
 
 import numpy as np
@@ -20,7 +21,7 @@ from ase.calculators.calculator import all_changes
 from ase.stress import full_3x3_to_voigt_6_stress
 
 from ._edges import edge_geometry
-from .base import SOURCE_KEY, Backend
+from .base import SOURCE_KEY, Backend, Source
 
 
 class SymmetrixBackend(Backend):
@@ -33,7 +34,12 @@ class SymmetrixBackend(Backend):
     least ``native_atoms`` atoms gain little from joining and are instead
     evaluated one at a time on Symmetrix's own prepared-geometry path, which
     keeps the neighbor graph on the device and reduces forces and stress
-    there; their results equal the Symmetrix calculator's. This works from
+    there; their results equal the Symmetrix calculator's. These share the
+    calculator, so their neighbor graphs are built on the host. With a
+    ``calculator_factory`` (see :meth:`from_model`), up to ``max_calculators``
+    trajectories of large structures each get a calculator of their own and
+    run exactly as with the Symmetrix calculator alone, including neighbor
+    graphs built on the device. This works from
     Symmetrix-XL 0.1.1; ``Symmetrix.calculate_batch`` is used only for
     calculators without the evaluator interface. Models with dispersion
     corrections or electric-field coupling fall back to one ASE evaluation
@@ -46,18 +52,56 @@ class SymmetrixBackend(Backend):
         max_atoms=None,
         batch_mode="native",
         native_atoms=None,
+        calculator_factory=None,
+        max_calculators=4,
     ):
         self.calculator = calculator
         self.max_atoms = max_atoms
         self.batch_mode = batch_mode
         self._graph = None
         if supports_graph_batching(calculator):
-            self._graph = GraphBatcher(calculator, native_atoms=native_atoms)
+            self._graph = GraphBatcher(
+                calculator,
+                native_atoms=native_atoms,
+                calculator_factory=calculator_factory,
+                max_calculators=max_calculators,
+            )
         elif not callable(getattr(calculator, "calculate_batch", None)):
             raise TypeError(
                 "SymmetrixBackend requires a Symmetrix calculator "
                 "(Symmetrix-XL 0.1.1 or later)."
             )
+
+    @classmethod
+    def from_model(
+        cls,
+        model_file,
+        max_atoms=None,
+        native_atoms=None,
+        max_calculators=4,
+        **symmetrix_options,
+    ):
+        """Create the backend from a model file, with dedicated calculators.
+
+        ``symmetrix_options`` are passed to ``symmetrix.Symmetrix`` (for
+        example ``dtype="float32"`` or ``metal=True``). Besides the shared
+        calculator, up to ``max_calculators`` trajectories of large
+        structures each get a calculator of their own, so that Symmetrix can
+        keep their neighbor graphs on the device. Each costs one model load
+        and its own device memory.
+        """
+        from symmetrix import Symmetrix
+
+        def factory():
+            return Symmetrix(model_file, **symmetrix_options)
+
+        return cls(
+            factory(),
+            max_atoms=max_atoms,
+            native_atoms=native_atoms,
+            calculator_factory=factory,
+            max_calculators=max_calculators,
+        )
 
     def evaluate(self, structures, properties):
         if self._graph is not None:
@@ -71,6 +115,19 @@ class SymmetrixBackend(Backend):
 # geometry path; below it they are joined into one graph. See
 # docs/performance.md for the measurement behind the value.
 NATIVE_ATOMS = 1000
+
+
+def _calculate(calculator, atoms, properties):
+    # The Symmetrix calculator's own path, with its own neighbor cache. The
+    # calculator keeps the structure it evaluated, which must not hold the
+    # trajectory's Source alive.
+    atoms = atoms.copy()
+    atoms.info.pop(SOURCE_KEY, None)
+    calculator.calculate(atoms, _evaluation_properties(properties), all_changes)
+    return {
+        key: np.array(value, copy=True) if isinstance(value, np.ndarray) else value
+        for key, value in calculator.results.items()
+    }
 
 
 def _evaluation_properties(properties):
@@ -98,8 +155,15 @@ class GraphBatcher:
         neighbor_cache_size=64,
         trajectory_cache_size=1024,
         native_atoms=None,
+        calculator_factory=None,
+        max_calculators=4,
     ):
         self.calculator = calculator
+        self.calculator_factory = calculator_factory
+        self.max_calculators = int(max_calculators)
+        self._dedicated = {}
+        self._idle = []
+        self._watched = set()
         self.native_atoms = NATIVE_ATOMS if native_atoms is None else native_atoms
         self.neighbor_cache_size = int(neighbor_cache_size)
         self._neighbor_cache = OrderedDict()
@@ -138,8 +202,61 @@ class GraphBatcher:
             for index, result in zip(small, joined):
                 results[index] = result
         for index in large:
-            results[index] = self._prepared(structures[index], properties)
+            dedicated = self._dedicated_calculator(structures[index])
+            if dedicated is None:
+                results[index] = self._prepared(structures[index], properties)
+            else:
+                results[index] = _calculate(dedicated, structures[index], properties)
         return results
+
+    def _dedicated_calculator(self, atoms):
+        """Return the calculator of the structure's trajectory, if it has one.
+
+        Up to ``max_calculators`` trajectories of large structures get a
+        calculator from ``calculator_factory``. A calculator returns to an idle
+        pool when its trajectory ends and is reused, with a fresh neighbor
+        cache, by the next trajectory; trajectories beyond the limit share the
+        main calculator, because creating calculators costs a model load.
+        """
+        source = atoms.info.get(SOURCE_KEY)
+        if self.calculator_factory is None or source is None:
+            return None
+        key = self._key(source)
+        calculator = self._dedicated.get(key)
+        if calculator is not None:
+            return calculator
+        if self._idle:
+            calculator = self._idle.pop()
+            calculator._neighbor_cache = None
+        elif len(self._dedicated) < self.max_calculators:
+            calculator = self.calculator_factory()
+        else:
+            return None
+        self._dedicated[key] = calculator
+        self._watch(source)
+        return calculator
+
+    @staticmethod
+    def _key(source):
+        # Keys must not keep a Source alive, or its release would never run.
+        if isinstance(source, Source):
+            return ("source", id(source))
+        return ("value", source)
+
+    def _watch(self, source):
+        """Release the state of ``source`` when it is garbage-collected."""
+        key = self._key(source)
+        if not isinstance(source, Source) or key in self._watched:
+            return
+        weakref.finalize(source, self._release, key)
+        self._watched.add(key)
+
+    def _release(self, key):
+        self._watched.discard(key)
+        calculator = self._dedicated.pop(key, None)
+        if calculator is not None:
+            self._idle.append(calculator)
+        self._trajectory_caches.pop(key, None)
 
     def _native_capable(self, properties):
         calculator = self.calculator
@@ -162,7 +279,9 @@ class GraphBatcher:
         source = atoms.info.get(SOURCE_KEY)
         saved = getattr(calculator, "_neighbor_cache", None)
         calculator._neighbor_cache = (
-            None if source is None else self._trajectory_caches.pop(source, None)
+            None
+            if source is None
+            else self._trajectory_caches.pop(self._key(source), None)
         )
         evaluation = _evaluation_properties(properties)
         try:
@@ -177,7 +296,8 @@ class GraphBatcher:
                 atoms, inputs, evaluation, generation
             )
             if source is not None:
-                self._trajectory_caches[source] = calculator._neighbor_cache
+                self._trajectory_caches[self._key(source)] = calculator._neighbor_cache
+                self._watch(source)
         finally:
             calculator._neighbor_cache = saved
         while len(self._trajectory_caches) > self.trajectory_cache_size:
@@ -359,7 +479,7 @@ class GraphBatcher:
         """
         calculator = self.calculator
         saved = getattr(calculator, "_neighbor_cache", None)
-        previous = self._trajectory_caches.pop(source, None)
+        previous = self._trajectory_caches.pop(self._key(source), None)
         calculator._neighbor_cache = previous
         try:
             generation = None if previous is None else previous.geometry_generation
@@ -371,7 +491,8 @@ class GraphBatcher:
             cache = calculator._neighbor_cache
             if edges[2] is None:
                 edges = self._edge_geometry(atoms, cache, previous, generation)
-            self._trajectory_caches[source] = cache
+            self._trajectory_caches[self._key(source)] = cache
+            self._watch(source)
         finally:
             calculator._neighbor_cache = saved
         while len(self._trajectory_caches) > self.trajectory_cache_size:

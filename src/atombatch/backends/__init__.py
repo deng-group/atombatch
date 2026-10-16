@@ -1,6 +1,6 @@
 """Evaluation backends: map a list of structures to a list of results."""
 
-from .base import SOURCE_KEY, Backend, FunctionBackend, SequentialBackend
+from .base import SOURCE_KEY, Backend, FunctionBackend, SequentialBackend, Source
 from .symmetrix import SymmetrixBackend, supports_graph_batching
 from .torchsim import TorchSimBackend, _is_torch_sim_model
 
@@ -9,6 +9,7 @@ __all__ = [
     "Backend",
     "FunctionBackend",
     "SequentialBackend",
+    "Source",
     "SymmetrixBackend",
     "TorchSimBackend",
     "as_backend",
