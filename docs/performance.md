@@ -81,6 +81,20 @@ Issue #1 measured one MD trajectory with energy, forces, and stress at every ste
 
 For large structures in long runs, create the backend with `SymmetrixBackend.from_model(model_file, dtype="float32")` instead of passing a calculator.
 
+Device memory of Symmetrix calculators (MACE-MP-0b medium, FP32, RTX 4090), measured with `nvidia-smi`:
+
+| Calculators and structure | Device memory |
+| --- | --- |
+| One calculator, nothing evaluated (weights and runtime) | 643 MiB |
+| One calculator after evaluating 1000 Si atoms | 919 MiB |
+| One calculator after evaluating 10,648 Si atoms | 1391 MiB |
+| Two calculators, each after 10,648 atoms | 2187 MiB |
+| Four calculators, each after 10,648 atoms | 3783 MiB |
+
+Each further calculator costs its own copy of the weights and its own workspace, which grows by about 50 KB per atom: about 0.8 GB for 10,648 atoms. With the default `max_calculators=4` a run therefore needs at most about 2.4 GB more than with the shared calculator alone; on smaller GPUs or with many concurrent large trajectories, lower `max_calculators` (0 keeps every structure on the shared calculator). The shared calculator's workspace grows with the total number of atoms in a joined call, so batching many structures also costs memory.
+
+[TorchSim](https://github.com/TorchSim/torch-sim) avoids per-trajectory state altogether: it rebuilds the neighbor lists of all systems on the GPU at every call and keeps positions on the GPU, because its integrators run there too. Symmetrix-XL 0.1.1 can only hold the device graph of one structure per calculator, which is why atombatch uses dedicated calculators for large trajectories.
+
 ## What a round costs
 
 The scheduler evaluates once every running task is either waiting on a request or finished. A round therefore costs the batched model calls plus the Python step logic of all running tasks (optimizer updates, NEB tangents, integrator steps). That step logic runs under the GIL, one task after another. The model call usually dominates.
