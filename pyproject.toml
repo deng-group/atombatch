@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "atombatch"
-version = "0.1.2"
+version = "0.1.3"
 description = "Batch energy and force evaluations from many independent ASE tasks into shared model calls."
 readme = "README.md"
 license = "GPL-3.0-or-later"
