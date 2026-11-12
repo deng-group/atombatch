@@ -7,3 +7,6 @@ dist/
 .pytest_cache/
 .ruff_cache/
 docs/_build/
+
+# Written by atomate2 force-field makers in the working directory
+final_atoms_object.xyz
