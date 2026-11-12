@@ -20,7 +20,7 @@ from .workflows import (
     swap_monte_carlo,
 )
 
-__version__ = "0.1.3"
+__version__ = "0.2.0"
 
 __all__ = [
     "Backend",
