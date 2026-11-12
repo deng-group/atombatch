@@ -334,7 +334,8 @@ class GraphBatcher:
         return results
 
     def _sequential(self, structures, properties):
-        # Dispersion corrections and field-coupled models need the ASE path.
+        # Long-range and field-coupled models and dispersion corrections are
+        # evaluated one structure at a time through the Symmetrix calculator.
         results = []
         for atoms in structures:
             self.calculator.calculate(atoms.copy(), list(properties), all_changes)
@@ -597,11 +598,24 @@ def segment_virials(pair_forces, xyz, edge_offsets):
     return virials
 
 
+# Model families whose energy is a sum of node energies over local graphs, so
+# that a disconnected joined graph evaluates each structure exactly. Long-range
+# families (MACE-POLAR-1, MACELES) and field-coupled ones are not.
+GRAPH_FAMILIES = ("MACE", "MACE_Nonlinear")
+
+
 def _unsupported_reason(calculator):
+    family = getattr(calculator, "_native_model_type", "MACE")
+    if family not in GRAPH_FAMILIES:
+        return f"{family} models"
     field = getattr(calculator, "_has_native_field_coupling", None)
     if callable(field) and field():
         return "electric-field (MACEField) models"
-    if getattr(calculator, "_dispersion_calculator", None) is not None:
+    # Symmetrix-XL 0.1 keeps dispersion in a separate ASE calculator, and 0.2
+    # in a native correction pipeline, which is truthy when configured.
+    if getattr(calculator, "_dispersion_calculator", None) is not None or bool(
+        getattr(calculator, "_correction_pipeline", None)
+    ):
         return "dispersion corrections"
     fixed = getattr(calculator, "_fixed_workspace_plan_selected", None)
     if callable(fixed) and fixed():

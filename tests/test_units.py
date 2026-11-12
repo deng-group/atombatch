@@ -585,3 +585,73 @@ def test_neighbor_list_check_handles_symmetrix_wrappers(fake_symmetrix, matscipy
     neighbor_list.__module__ = "symmetrix.calculator"
     fake_symmetrix(neighbor_list, _matscipy_neighbor_list=matscipy)
     assert uses_ase_neighbor_list() is (matscipy is None)
+
+
+def _fake_symmetrix(family="MACE", **attributes):
+    calculator = types.SimpleNamespace(
+        _native_model_type=family,
+        _has_native_field_coupling=lambda: False,
+        _dispersion_calculator=None,
+        _correction_pipeline=(),
+        _fixed_workspace_plan_selected=lambda: False,
+    )
+    for name, value in attributes.items():
+        setattr(calculator, name, value)
+    return calculator
+
+
+@pytest.mark.parametrize("family", ["MACE", "MACE_Nonlinear"])
+def test_local_families_are_joined(family):
+    from atombatch.backends.symmetrix import _unsupported_reason
+
+    assert _unsupported_reason(_fake_symmetrix(family)) is None
+
+
+@pytest.mark.parametrize("family", ["MACE_Polar", "MACELES", "MACEField", "Future"])
+def test_other_families_are_evaluated_one_at_a_time(family):
+    # Long-range families couple all atoms of a structure, so a joined graph
+    # of several structures would evaluate them wrongly.
+    from atombatch.backends.symmetrix import _unsupported_reason
+
+    assert _unsupported_reason(_fake_symmetrix(family)) == f"{family} models"
+
+
+def test_native_correction_pipelines_are_evaluated_one_at_a_time():
+    from atombatch.backends.symmetrix import _unsupported_reason
+
+    calculator = _fake_symmetrix(_correction_pipeline=("D3",))
+    assert _unsupported_reason(calculator) == "dispersion corrections"
+
+
+def test_graph_level_inputs_in_atoms_info_trigger_a_new_evaluation():
+    # MACE-POLAR-1 reads total_charge, total_spin, fermi_level, and
+    # electric_field from Atoms.info; changing one at fixed positions must
+    # not reuse the previous result.
+    def charge_energy(structures, properties):
+        return [
+            {
+                "energy": float(atoms.info.get("total_charge", 0.0)),
+                "forces": np.zeros((len(atoms), 3)),
+            }
+            for atoms in structures
+        ]
+
+    def task(context):
+        atoms = bulk("Cu", cubic=True)
+        atoms.calc = context.calculator()
+        energies = [atoms.get_potential_energy()]
+        atoms.info["total_charge"] = 1.0
+        energies.append(atoms.get_potential_energy())
+        atoms.info["electric_field"] = [0.0, 0.0, 0.1]
+        energies.append(atoms.get_potential_energy())
+        energies.append(atoms.get_potential_energy())
+        return energies
+
+    scheduler = Scheduler()
+    scheduler.add_model("model", FunctionBackend(charge_energy))
+    scheduler.submit(task, "model")
+
+    (result,) = scheduler.run()
+
+    assert result.value == [0.0, 1.0, 1.0, 1.0]
+    assert sum(size for _, size, _ in scheduler.batch_log) == 3

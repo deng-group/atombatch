@@ -6,11 +6,17 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+import numpy as np
 from ase.calculators.calculator import Calculator, all_changes, equal
 
 from .backends import SOURCE_KEY, Source, as_backend
 
 _REQUIRED = ("energy", "forces")
+# Properties every backend returns or derives; others are requested explicitly.
+_STANDARD = frozenset(("energy", "free_energy", "energies", "forces", "stress"))
+# Atoms.info entries that Symmetrix reads as graph-level model inputs
+# (MACE-POLAR-1 charge, spin, Fermi level, and external field).
+GRAPH_INPUT_INFO = ("total_charge", "total_spin", "fermi_level", "electric_field")
 
 
 @dataclass
@@ -62,6 +68,7 @@ class BatchCalculator(Calculator):
         "energies",
         "forces",
         "stress",
+        "dipole",
     ]
 
     def __init__(self, scheduler, model, properties=_REQUIRED):
@@ -99,6 +106,13 @@ class BatchCalculator(Calculator):
             for prop in names & arrays1.keys() & arrays2.keys()
             if not _same(arrays1[prop], arrays2[prop], tol)
         ]
+        # Graph-level inputs that models such as MACE-POLAR-1 read from
+        # Atoms.info; a change requires a new evaluation, as for Symmetrix.
+        if any(
+            not _same_info(self.atoms.info.get(key), atoms.info.get(key))
+            for key in GRAPH_INPUT_INFO
+        ):
+            changes.append("info")
         return changes
 
     def calculate(self, atoms=None, properties=("energy",), system_changes=all_changes):
@@ -296,10 +310,15 @@ class Scheduler:
         groups = {}
         for request in requests:
             stress = "stress" in request.properties
-            groups.setdefault((request.model, stress), []).append(request)
-        for (model, stress), group in groups.items():
+            # Further properties, such as the dipole of MACE-POLAR-1, are
+            # passed to the backend; requests differing in them are separate.
+            extras = tuple(
+                sorted(prop for prop in request.properties if prop not in _STANDARD)
+            )
+            groups.setdefault((request.model, stress, extras), []).append(request)
+        for (model, stress, extras), group in groups.items():
             backend = self._backends[model]
-            properties = (*_REQUIRED, "stress") if stress else _REQUIRED
+            properties = (*_REQUIRED, *(("stress",) if stress else ()), *extras)
             for chunk in _chunks(group, backend.max_atoms):
                 self.batch_log.append(
                     (model, len(chunk), sum(len(r.atoms) for r in chunk))
@@ -331,6 +350,12 @@ def _same(first, second, tol):
     if first.shape != second.shape:
         return False
     return bool((first == second).all()) or equal(first, second, atol=tol)
+
+
+def _same_info(first, second):
+    if first is None or second is None:
+        return first is None and second is None
+    return np.array_equal(np.asarray(first), np.asarray(second))
 
 
 def _chunks(requests, max_atoms):

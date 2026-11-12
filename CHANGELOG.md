@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- MACE-POLAR-1 with Symmetrix-XL 0.2 now gives correct results. Only model families whose energy is a sum over local graphs (standard MACE and MACE-MH-1) are joined into one graph; MACE-POLAR-1, MACELES, and other families are evaluated one structure at a time through the Symmetrix calculator. Before, a MACE-POLAR-1 calculator was joined and returned wrong energies and forces without an error (for eight-molecule water boxes, energies off by up to 6.4 eV and forces by up to 9.5 eV/Å).
+- Calculators with the native dispersion corrections of Symmetrix-XL 0.2 (`corrections=[D3Correction(...)]` or `dispersion=True`) are evaluated one structure at a time, as with the separate dispersion calculator of 0.1.
+- A change of `total_charge`, `total_spin`, `fermi_level`, or `electric_field` in `Atoms.info` causes a new evaluation, as in the Symmetrix calculator, which reads them for MACE-POLAR-1.
+- Properties beyond energy, forces, and stress are passed to the backend, so tasks can read the MACE-POLAR-1 dipole with `atoms.get_dipole_moment()`.
+
 ## 0.2.0 (2026-11-12)
 
 atombatch supports Symmetrix-XL 0.2, which evaluates its joined batches natively on the device, and remains compatible with Symmetrix-XL 0.1.
