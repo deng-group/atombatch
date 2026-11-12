@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Tested with Symmetrix-XL 0.2 (the `v0.2.0-prepare` branch, built with the Apple GPU backend on an M1 Max). Symmetrix-XL 0.2 evaluates source-keyed joined batches as one prepared segment group on the device, and the atombatch test suite passes against it.
+- Batched stress falls back to atombatch's NumPy reduction when the native segmented reduction of Symmetrix-XL 0.2 is unavailable for a call. That happens when the batch did not go through a segment group, for example for structures without a `Source`, and raised `ValueError` before.
+- The documentation no longer describes `Symmetrix.calculate_batch` as part of a coming Symmetrix-XL release.
+
 ## 0.1.3 (2026-10-17)
 
 Large structures with Symmetrix now run as fast through atombatch as with the Symmetrix calculator alone (issue #1), and atombatch gains random structure searching and an atomate2 integration.

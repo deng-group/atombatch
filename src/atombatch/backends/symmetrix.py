@@ -6,9 +6,11 @@ runs only along graph edges, so the structures do not interact. Energies are
 summed per structure from node energies, forces are reduced per atom, and
 stresses are reduced per structure from the directed pair forces.
 
-Adapted from ``symmetrix.batch`` of Symmetrix-XL (MIT License), which provides
-``Symmetrix.calculate_batch`` in later releases. It uses only evaluator calls
-present since Symmetrix-XL 0.1.1.
+Adapted from ``symmetrix.batch`` in the ``batched-evaluation`` branch of the
+deng-group fork of Symmetrix-XL (MIT License). It uses only evaluator calls
+present since Symmetrix-XL 0.1.1. Symmetrix-XL 0.2 recognizes the source keys
+of joined structures and evaluates them as one prepared segment group with the
+geometry kept on the device; the results are the same.
 """
 
 import hashlib
@@ -39,9 +41,11 @@ class SymmetrixBackend(Backend):
     ``calculator_factory`` (see :meth:`from_model`), up to ``max_calculators``
     trajectories of large structures each get a calculator of their own and
     run exactly as with the Symmetrix calculator alone, including neighbor
-    graphs built on the device. This works from
-    Symmetrix-XL 0.1.1; ``Symmetrix.calculate_batch`` is used only for
-    calculators without the evaluator interface. Models with dispersion
+    graphs built on the device. This works from Symmetrix-XL 0.1.1, and
+    Symmetrix-XL 0.2 evaluates source-keyed joined batches natively on the
+    device. ``Symmetrix.calculate_batch``, which no Symmetrix-XL release
+    provides, is used only for calculators without the evaluator interface.
+    Models with dispersion
     corrections or electric-field coupling fall back to one ASE evaluation
     per structure.
     """
@@ -411,12 +415,18 @@ class GraphBatcher:
             reduce_segmented = getattr(evaluator, "_reduce_segmented_stress", None)
             if callable(reduce_segmented):
                 # The native reduction divides by a volume; unit volumes give
-                # virials.
-                virials = np.asarray(
-                    reduce_segmented(np.ones(len(structures)), edge_offsets, xyz),
-                    dtype=np.float64,
-                ).reshape(len(structures), 3, 3)
-            else:
+                # virials. In Symmetrix-XL 0.2 it reduces the batch graph that
+                # the calculator prepares for source-keyed segments, and raises
+                # ValueError when this call took its plain joined-graph path
+                # instead; the pair forces are then reduced here.
+                try:
+                    virials = np.asarray(
+                        reduce_segmented(np.ones(len(structures)), edge_offsets, xyz),
+                        dtype=np.float64,
+                    ).reshape(len(structures), 3, 3)
+                except ValueError:
+                    virials = None
+            if virials is None:
                 if pair_forces is None:
                     pair_forces = edge_forces(evaluator, len(i_list))
                 virials = segment_virials(pair_forces, xyz, edge_offsets)

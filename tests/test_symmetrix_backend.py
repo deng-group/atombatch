@@ -276,7 +276,7 @@ def test_dedicated_calculators_follow_their_trajectories_and_are_reused():
     # the limit share the main calculator.
     if not MODEL:
         pytest.skip("set ATOMBATCH_SYMMETRIX_MODEL to a Symmetrix JSON model")
-    pytest.importorskip("symmetrix")
+    symmetrix = pytest.importorskip("symmetrix")
     import gc
 
     from atombatch.backends import Source
@@ -302,10 +302,20 @@ def test_dedicated_calculators_follow_their_trajectories_and_are_reused():
 
     assert len(created) == 2  # the third trajectory shares the main calculator
     same = _equal if _reproducible(factory(), _perovskite(5)) else _close
-    for atoms, result in zip(structures, results):
+    # Symmetrix-XL 0.2 gives source-keyed trajectories on the shared main
+    # calculator a wider candidate graph (``joined_neighbor_skin``). Candidates
+    # beyond the cutoff contribute nothing but change the summation order, so
+    # an independent calculator with the same skin evaluates the same graph.
+    shared_skin = getattr(graph.calculator, "joined_neighbor_skin", None)
+    for index, (atoms, result) in enumerate(zip(structures, results)):
         reference = atoms.copy()
         reference.info.clear()
-        reference.calc = factory()
+        if index < 2 or shared_skin is None:
+            reference.calc = factory()
+        else:
+            reference.calc = symmetrix.Symmetrix(
+                MODEL, dtype="float64", neighbor_skin=shared_skin
+            )
         same(result["forces"], reference.get_forces())
         same(result["stress"], reference.get_stress())
 
