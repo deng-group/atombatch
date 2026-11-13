@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- MACE-POLAR-1 requests are evaluated in shared native calls through `Symmetrix.calculate_polar_batch` where the installed Symmetrix provides it, instead of one structure at a time. Each structure keeps its own cell, `Atoms.info` inputs, and long-range solver, and the results equal the Symmetrix calculator's to rounding. Calculators with D3 corrections use the batch only when Symmetrix adds the corrections to batched results; the first version of `calculate_polar_batch` omitted them. Requests for properties the batch does not return are still evaluated one at a time.
+
 ## 0.2.1 (2026-11-13)
 
 Correct results for MACE-POLAR-1 with Symmetrix-XL 0.2, which 0.2.0 evaluated wrongly without an error.

@@ -1,7 +1,9 @@
 """MACE-POLAR-1 through Symmetrix-XL 0.2.
 
-Polar models have long-range electrostatics, so atombatch evaluates them one
-structure at a time through the Symmetrix calculator. These tests compare
+Polar models have long-range electrostatics, so atombatch never joins them
+into one graph. Where Symmetrix provides ``calculate_polar_batch`` they are
+evaluated in shared native calls, each structure with its own cell and graph
+inputs; otherwise one at a time through the calculator. These tests compare
 every path with the calculator alone. They run only when
 ``ATOMBATCH_SYMMETRIX_POLAR_MODEL`` names an exported MACE-POLAR-1 JSON model.
 """
@@ -63,18 +65,52 @@ def _reference(atoms, symmetrix):
     return reference
 
 
-def test_polar_models_are_evaluated_one_at_a_time_and_exactly(symmetrix):
+def _batches(calculator):
+    return getattr(calculator.evaluator, "polar_whole_model_batch_count", 0)
+
+
+def test_polar_models_are_batched_natively_and_exactly(symmetrix):
+    calculator = _calculator(symmetrix)
     scheduler = Scheduler()
-    scheduler.add_model("polar", _calculator(symmetrix))
-    assert scheduler._backends["polar"]._graph.unsupported == "MACE_Polar models"
+    scheduler.add_model("polar", calculator)
+    graph = scheduler._backends["polar"]._graph
+    assert graph.unsupported == "MACE_Polar models"
     structures = [_water_box(seed) for seed in range(3)]
+    for atoms in structures:
+        scheduler.submit(single_point(atoms, ("energy", "forces", "stress")), "polar")
+    before = _batches(calculator)
+
+    results = scheduler.run()
+
+    assert scheduler.batch_log == [("polar", 3, sum(map(len, structures)))]
+    if graph.polar_batch:
+        assert _batches(calculator) - before == 1
+
+    for atoms, result in zip(structures, results):
+        reference = _reference(atoms, symmetrix)
+        _close(result.value["energy"], reference.get_potential_energy())
+        _close(result.value["forces"], reference.get_forces())
+        _close(result.value["stress"], reference.get_stress(), atol=1e-10)
+
+
+def test_polar_batches_add_dispersion_corrections(symmetrix):
+    corrections = pytest.importorskip("symmetrix.corrections")
+    calculator = symmetrix.Symmetrix(
+        MODEL, dtype="float64", corrections=[corrections.D3Correction()]
+    )
+    structures = [_water_box(seed) for seed in range(2)]
+    scheduler = Scheduler()
+    scheduler.add_model("polar", calculator)
     for atoms in structures:
         scheduler.submit(single_point(atoms, ("energy", "forces", "stress")), "polar")
 
     results = scheduler.run()
 
     for atoms, result in zip(structures, results):
-        reference = _reference(atoms, symmetrix)
+        reference = atoms.copy()
+        reference.calc = symmetrix.Symmetrix(
+            MODEL, dtype="float64", corrections=[corrections.D3Correction()]
+        )
         _close(result.value["energy"], reference.get_potential_energy())
         _close(result.value["forces"], reference.get_forces())
         _close(result.value["stress"], reference.get_stress(), atol=1e-10)

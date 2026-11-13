@@ -45,9 +45,11 @@ class SymmetrixBackend(Backend):
     Symmetrix-XL 0.2 evaluates source-keyed joined batches natively on the
     device. ``Symmetrix.calculate_batch``, which no Symmetrix-XL release
     provides, is used only for calculators without the evaluator interface.
-    Models with dispersion
-    corrections or electric-field coupling fall back to one ASE evaluation
-    per structure.
+    MACE-POLAR-1 models are
+    evaluated with ``Symmetrix.calculate_polar_batch`` where Symmetrix
+    provides it. Other long-range families, models with dispersion
+    corrections, and field-coupled models fall back to one ASE evaluation per
+    structure.
     """
 
     def __init__(
@@ -177,6 +179,7 @@ class GraphBatcher:
         self._type_lookup = np.full(max(numbers) + 1, -1, dtype=np.int64)
         self._type_lookup[numbers] = np.arange(len(numbers))
         self.unsupported = _unsupported_reason(calculator)
+        self.polar_batch = supports_polar_batch(calculator)
         if uses_ase_neighbor_list():
             warnings.warn(
                 "Symmetrix is using ASE's Python neighbor list because matscipy "
@@ -190,6 +193,10 @@ class GraphBatcher:
     def evaluate(self, structures, properties):
         structures = list(structures)
         if self.unsupported:
+            if self.polar_batch and set(properties) <= POLAR_BATCH_PROPERTIES:
+                return self.calculator.calculate_polar_batch(
+                    structures, list(properties)
+                )
             return self._sequential(structures, properties)
         native = self._native_capable(properties)
         large = [
@@ -602,6 +609,32 @@ def segment_virials(pair_forces, xyz, edge_offsets):
 # that a disconnected joined graph evaluates each structure exactly. Long-range
 # families (MACE-POLAR-1, MACELES) and field-coupled ones are not.
 GRAPH_FAMILIES = ("MACE", "MACE_Nonlinear")
+
+
+# Properties that Symmetrix.calculate_polar_batch returns.
+POLAR_BATCH_PROPERTIES = frozenset(
+    ("energy", "free_energy", "forces", "stress", "dipole")
+)
+
+
+def supports_polar_batch(calculator):
+    """Return whether MACE-POLAR-1 structures can be evaluated in one call.
+
+    ``Symmetrix.calculate_polar_batch`` evaluates independent MACE-POLAR-1
+    structures in shared native calls, each with its own cell, graph inputs,
+    and long-range solver. Its first version omitted the correction pipeline
+    (D3), so a calculator with corrections uses it only when the batch adds
+    them (``_add_polar_batch_corrections``).
+    """
+    if getattr(calculator, "_native_model_type", None) != "MACE_Polar":
+        return False
+    if not callable(getattr(calculator, "calculate_polar_batch", None)):
+        return False
+    if getattr(calculator, "_dispersion_calculator", None) is not None:
+        return False
+    if bool(getattr(calculator, "_correction_pipeline", None)):
+        return callable(getattr(calculator, "_add_polar_batch_corrections", None))
+    return True
 
 
 def _unsupported_reason(calculator):
