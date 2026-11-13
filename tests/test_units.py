@@ -10,7 +10,7 @@ import types
 import numpy as np
 import pytest
 from ase import Atoms
-from ase.build import bulk
+from ase.build import bulk, molecule
 from ase.calculators.emt import EMT
 
 from atombatch import (
@@ -614,6 +614,84 @@ def test_other_families_are_evaluated_one_at_a_time(family):
     from atombatch.backends.symmetrix import _unsupported_reason
 
     assert _unsupported_reason(_fake_symmetrix(family)) == f"{family} models"
+
+
+class _PolarCalculator:
+    """MACE-POLAR-1 calculator whose Symmetrix provides calculate_polar_batch."""
+
+    cutoff = 5.0
+    evaluator = types.SimpleNamespace(atomic_numbers=(1, 8))
+    _native_model_type = "MACE_Polar"
+    _dispersion_calculator = None
+    _correction_pipeline = ()
+
+    def __init__(self):
+        self.batches = []
+        self.singles = 0
+        self.results = {}
+
+    def _compute_mace(self, mace_inputs, atoms=None):
+        raise NotImplementedError
+
+    def calculate_polar_batch(self, structures, properties):
+        self.batches.append((len(structures), tuple(properties)))
+        return [{"energy": float(len(atoms))} for atoms in structures]
+
+    def calculate(self, atoms, properties, system_changes):
+        self.singles += 1
+        self.results = {"energy": float(len(atoms)), "charges": np.zeros(len(atoms))}
+
+
+def _compiled_neighbor_list(fake_symmetrix):
+    def neighbor_list(quantities, atoms, cutoff):
+        return ()
+
+    neighbor_list.__module__ = "matscipy.neighbours"
+    fake_symmetrix(neighbor_list)
+
+
+def test_polar_structures_share_one_batched_call(fake_symmetrix):
+    from atombatch.backends.symmetrix import GraphBatcher
+
+    _compiled_neighbor_list(fake_symmetrix)
+    calculator = _PolarCalculator()
+    batcher = GraphBatcher(calculator)
+    structures = [molecule("H2O"), molecule("H2O"), molecule("O2")]
+
+    results = batcher.evaluate(structures, ("energy", "forces", "stress", "dipole"))
+
+    assert calculator.batches == [(3, ("energy", "forces", "stress", "dipole"))]
+    assert calculator.singles == 0
+    assert [result["energy"] for result in results] == [3.0, 3.0, 2.0]
+
+
+def test_polar_properties_beyond_the_batch_are_evaluated_one_at_a_time(
+    fake_symmetrix,
+):
+    from atombatch.backends.symmetrix import GraphBatcher
+
+    _compiled_neighbor_list(fake_symmetrix)
+    calculator = _PolarCalculator()
+    batcher = GraphBatcher(calculator)
+
+    batcher.evaluate([molecule("H2O"), molecule("O2")], ("energy", "charges"))
+
+    assert calculator.batches == []
+    assert calculator.singles == 2
+
+
+def test_polar_batching_needs_the_symmetrix_batch_call():
+    from atombatch.backends.symmetrix import supports_polar_batch
+
+    assert supports_polar_batch(_PolarCalculator())
+    assert not supports_polar_batch(_fake_symmetrix("MACE_Polar"))
+    assert not supports_polar_batch(_fake_symmetrix("MACE"))
+    # Corrections (D3) are batched only when the batch adds them.
+    corrected = _PolarCalculator()
+    corrected._correction_pipeline = ("D3",)
+    assert not supports_polar_batch(corrected)
+    corrected._add_polar_batch_corrections = lambda *arguments: None
+    assert supports_polar_batch(corrected)
 
 
 def test_native_correction_pipelines_are_evaluated_one_at_a_time():
