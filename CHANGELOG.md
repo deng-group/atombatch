@@ -1,8 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.2.2 (2026-11-13)
+
+MACE-POLAR-1 is batched with the `v0.2-deng` branch of the deng-group fork of Symmetrix-XL, which provides `Symmetrix.calculate_polar_batch`.
 
 - MACE-POLAR-1 requests are evaluated in shared native calls through `Symmetrix.calculate_polar_batch` where the installed Symmetrix provides it, instead of one structure at a time. Each structure keeps its own cell, `Atoms.info` inputs, and long-range solver, and the results equal the Symmetrix calculator's to rounding. Calculators with D3 corrections use the batch only when Symmetrix adds the corrections to batched results; the first version of `calculate_polar_batch` omitted them. Requests for properties the batch does not return are still evaluated one at a time.
+- Tested on an RTX 4090 (FP32 and FP64) and an M1 Max: batched results match the Symmetrix calculator, and FIRE relaxations of 32 periodic water boxes and 64 isolated methanol molecules take the same number of steps as a sequential ASE loop. With other Symmetrix-XL versions, MACE-POLAR-1 is evaluated one structure at a time as in 0.2.1.
 
 ## 0.2.1 (2026-11-13)
 
