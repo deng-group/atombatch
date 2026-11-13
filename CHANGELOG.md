@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.2.1 (2026-11-13)
+
+Correct results for MACE-POLAR-1 with Symmetrix-XL 0.2, which 0.2.0 evaluated wrongly without an error.
 
 - MACE-POLAR-1 with Symmetrix-XL 0.2 now gives correct results. Only model families whose energy is a sum over local graphs (standard MACE and MACE-MH-1) are joined into one graph; MACE-POLAR-1, MACELES, and other families are evaluated one structure at a time through the Symmetrix calculator. Before, a MACE-POLAR-1 calculator was joined and returned wrong energies and forces without an error (for eight-molecule water boxes, energies off by up to 6.4 eV and forces by up to 9.5 eV/Å).
 - Calculators with the native dispersion corrections of Symmetrix-XL 0.2 (`corrections=[D3Correction(...)]` or `dispersion=True`) are evaluated one structure at a time, as with the separate dispersion calculator of 0.1.
