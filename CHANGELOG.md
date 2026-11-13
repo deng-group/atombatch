@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The installation guide explains which Symmetrix-XL provides which features: the PyPI release (0.1.2) for standard MACE and MACE-MH-1, and source builds of the `v0.2-deng` branch for MACE-POLAR-1 batches and Metal, with build recipes for Apple silicon and NVIDIA GPUs. The outdated `metal-preview-1` wheels are no longer recommended.
+
 ## 0.2.2 (2026-11-13)
 
 MACE-POLAR-1 is batched with the `v0.2-deng` branch of the deng-group fork of Symmetrix-XL, which provides `Symmetrix.calculate_polar_batch`.

@@ -31,7 +31,9 @@ atombatch needs Python 3.10 or later, NumPy, and ASE. The model is installed sep
 | --- | --- |
 | Linux, CPU | `pip install "atombatch[symmetrix]"` |
 | Linux, NVIDIA GPU | `pip install atombatch matscipy numba symmetrix-xl-cuda12-sm89` (choose `sm80`, `sm86`, `sm89`, `sm90`, or `cuda13-sm120` for your GPU, or run `symmetrix backend install` after installing `symmetrix-xl`) |
-| macOS, Apple GPU | `pip install atombatch matscipy numba "symmetrix-xl @ git+https://github.com/bonan-group/symmetrix-xl.git@main#subdirectory=symmetrix"` (builds the Metal backend from source in a few minutes; needs the Xcode command line tools), or the prebuilt wheels of the [metal-preview-1](https://github.com/deng-group/symmetrix-xl/releases/tag/metal-preview-1) release |
+| macOS, Apple GPU | `pip install atombatch matscipy numba "symmetrix-xl @ git+https://github.com/deng-group/symmetrix-xl.git@v0.2-deng#subdirectory=symmetrix"` (builds the Metal backend from source in a few minutes; needs the Xcode command line tools) |
+
+These PyPI packages are Symmetrix-XL 0.1, which batches standard MACE and MACE-MH-1. MACE-POLAR-1, batched on the device, needs Symmetrix-XL 0.2 from the `v0.2-deng` branch of [deng-group/symmetrix-xl](https://github.com/deng-group/symmetrix-xl), built from source as in the macOS row or, for NVIDIA GPUs, with the CUDA recipe in the [installation guide](https://deng-group.github.io/atombatch/installation.html).
 
 Symmetrix evaluates a JSON export of a MACE model. For example, for MACE-MP-0b medium (the conversion needs `mace-torch`):
 
